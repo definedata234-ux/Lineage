@@ -1,0 +1,86 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "DOMAIN": "CUSTOMER",
+    "SUBJECT_AREA": "CUSTOMER_360",
+    "SCHEDULE": "WEEKLY",
+    "OWNER": "customer_success@verizon.com"
+  },
+  "dataSources": [
+    {
+      "name": "SQLServer_CRM",
+      "type": "sql",
+      "connectionString": "Server=crm-sql.verizon.com;Database=CRM_Production;Integrated Security=SSPI",
+      "queries": [
+        {
+          "name": "customers",
+          "query": "SELECT customer_id, customer_name, email, phone, signup_date, status FROM crm.customers WHERE active = 1"
+        },
+        {
+          "name": "orders",
+          "query": "SELECT order_id, customer_id, order_date, total_amount, status FROM crm.orders WHERE order_date >= DATEADD(YEAR, -1, GETDATE())"
+        }
+      ]
+    },
+    {
+      "name": "Excel_Uploads",
+      "type": "excel",
+      "path": "/shared/customer/survey_results.xlsx",
+      "queries": [
+        {
+          "name": "survey_responses",
+          "query": "Source=Excel.Workbook(File.Contents(\"/shared/customer/survey_results.xlsx\")), survey_data=Source{[Item=\"Responses\"]}[Data], PromotedHeaders=Table.PromoteHeaders(survey_data)"
+        }
+      ]
+    }
+  ],
+  "transformations": [
+    {
+      "name": "Customer_Orders",
+      "type": "power_query",
+      "mExpression": "let Source = Sql.Database(\"crm-sql.verizon.com\", \"CRM_Production\"), customers = Source{[Schema=\"crm\",Item=\"customers\"]}[Data], orders = Source{[Schema=\"crm\",Item=\"orders\"]}[Data], Merged = Table.NestedJoin(customers, {\"customer_id\"}, orders, {\"customer_id\"}, \"Orders\", JoinKind.LeftOuter), Expanded = Table.ExpandTableColumn(Merged, \"Orders\", {\"order_id\", \"order_date\", \"total_amount\"}, {\"order_id\", \"order_date\", \"order_amount\"}) in Expanded"
+    }
+  ],
+  "dataModel": {
+    "tables": [
+      {
+        "name": "Customers",
+        "columns": [
+          {"name": "customer_id", "dataType": "int64"},
+          {"name": "customer_name", "dataType": "string"},
+          {"name": "email", "dataType": "string"},
+          {"name": "signup_date", "dataType": "dateTime"}
+        ]
+      },
+      {
+        "name": "Orders",
+        "columns": [
+          {"name": "order_id", "dataType": "int64"},
+          {"name": "customer_id", "dataType": "int64"},
+          {"name": "order_date", "dataType": "dateTime"},
+          {"name": "total_amount", "dataType": "decimal"}
+        ]
+      }
+    ],
+    "relationships": [
+      {
+        "from": "Orders",
+        "to": "Customers",
+        "fromColumn": "customer_id",
+        "toColumn": "customer_id"
+      }
+    ]
+  },
+  "measures": [
+    {
+      "table": "Orders",
+      "name": "Total Orders",
+      "expression": "COUNTROWS(Orders)"
+    },
+    {
+      "table": "Orders",
+      "name": "Total Revenue",
+      "expression": "SUM(Orders[total_amount])"
+    }
+  ]
+}

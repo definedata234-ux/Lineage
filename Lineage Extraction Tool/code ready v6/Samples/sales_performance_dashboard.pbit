@@ -1,0 +1,94 @@
+{
+  "version": "2.0.0",
+  "metadata": {
+    "DOMAIN": "retail",
+    "SUBJECT_AREA": "sales_performance",
+    "SCHEDULE": "0 7 * * 1",
+    "OWNER": "bi-platform-team"
+  },
+  "dataSources": [
+    {
+      "name": "GoldLayer",
+      "type": "sql",
+      "queries": [
+        {
+          "name": "customer_order_summary",
+          "query": "SELECT\n    cos.customer_id,\n    cos.customer_name,\n    cos.region,\n    cos.customer_segment,\n    cos.total_orders,\n    cos.total_revenue,\n    cos.avg_unit_price,\n    cos.last_order_date\nFROM gold.customer_order_summary cos\nWHERE cos.total_revenue > 0"
+        },
+        {
+          "name": "high_value_customers",
+          "query": "SELECT\n    hvc.customer_id,\n    hvc.customer_name,\n    hvc.region,\n    hvc.total_revenue,\n    cos.total_orders,\n    cos.last_order_date\nFROM gold.high_value_customers hvc\nJOIN gold.customer_order_summary cos\n    ON hvc.customer_id = cos.customer_id\nWHERE hvc.total_revenue >= 10000"
+        },
+        {
+          "name": "regional_summary",
+          "query": "SELECT\n    region,\n    customer_segment,\n    COUNT(customer_id) AS customer_count,\n    SUM(total_revenue) AS region_revenue,\n    AVG(avg_unit_price) AS avg_price\nFROM gold.customer_order_summary\nGROUP BY region, customer_segment"
+        }
+      ]
+    }
+  ],
+  "dataModel": {
+    "tables": [
+      {
+        "name": "CustomerOrders",
+        "source": "gold.customer_order_summary",
+        "columns": [
+          {
+            "name": "customer_id"
+          },
+          {
+            "name": "customer_name"
+          },
+          {
+            "name": "region"
+          },
+          {
+            "name": "customer_segment"
+          },
+          {
+            "name": "total_revenue"
+          },
+          {
+            "name": "total_orders"
+          }
+        ]
+      },
+      {
+        "name": "HighValueCustomers",
+        "source": "gold.high_value_customers",
+        "columns": [
+          {
+            "name": "customer_id"
+          },
+          {
+            "name": "customer_name"
+          },
+          {
+            "name": "total_revenue"
+          }
+        ]
+      }
+    ]
+  },
+  "measures": [
+    {
+      "name": "Total Revenue",
+      "expression": "SUM(CustomerOrders[total_revenue])"
+    },
+    {
+      "name": "Total Customers",
+      "expression": "COUNTROWS(CustomerOrders)"
+    },
+    {
+      "name": "Avg Order Value",
+      "expression": "AVERAGE(CustomerOrders[avg_unit_price])"
+    },
+    {
+      "name": "HV Customer Count",
+      "expression": "COUNTROWS(HighValueCustomers)"
+    },
+    {
+      "name": "Revenue per Customer",
+      "expression": "DIVIDE([Total Revenue], [Total Customers])"
+    }
+  ]
+}

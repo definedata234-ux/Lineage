@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- DOMAIN: finance -->
+<!-- SUBJECT_AREA: budgeting -->
+<!-- OWNER: data-engineering -->
+
+<!-- Azure Data Factory ARM Template / SSRS Report Definition -->
+<!-- Tests: SQL inside XML elements -->
+
+<Pipeline xmlns="http://schemas.microsoft.com/DataFactory/2013/Pipeline">
+  <name>ETL_Budget_Actuals</name>
+  <description>Finance budget vs actuals pipeline</description>
+
+  <activities>
+    <activity name="Extract_Budget_Data" type="SqlSource">
+      <sqlReaderQuery><![CDATA[
+        SELECT
+            b.budget_id,
+            b.period_id,
+            b.cost_centre,
+            b.gl_account,
+            b.budget_amount,
+            b.forecast_amount,
+            p.fiscal_year,
+            p.fiscal_quarter,
+            p.fiscal_month,
+            cc.department_name,
+            cc.business_unit
+        FROM finance.budget_plans b
+        JOIN finance.periods p
+            ON b.period_id = p.period_id
+        JOIN finance.cost_centres cc
+            ON b.cost_centre = cc.cost_centre_id
+        WHERE p.fiscal_year = 2024
+          AND b.is_approved = 1
+      ]]></sqlReaderQuery>
+    </activity>
+
+    <activity name="Load_Budget_Actuals" type="SqlSink">
+      <sqlWriterQuery><![CDATA[
+        INSERT INTO gold.budget_actuals_summary
+        SELECT
+            ba.period_id,
+            ba.cost_centre,
+            ba.gl_account,
+            ba.budget_amount,
+            ba.forecast_amount,
+            a.actual_amount,
+            (ba.budget_amount - a.actual_amount)              AS variance,
+            (a.actual_amount / NULLIF(ba.budget_amount, 0))  AS achievement_pct,
+            p.fiscal_year,
+            p.fiscal_quarter
+        FROM finance.budget_plans ba
+        JOIN finance.actuals a
+            ON ba.period_id = a.period_id
+            AND ba.cost_centre = a.cost_centre
+            AND ba.gl_account = a.gl_account
+        JOIN finance.periods p
+            ON ba.period_id = p.period_id
+      ]]></sqlWriterQuery>
+    </activity>
+  </activities>
+</Pipeline>

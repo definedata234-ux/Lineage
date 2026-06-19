@@ -1,0 +1,1614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lineage Extraction Tool</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+:root{
+  --bg:#ffffff;--bg2:#f7f7f5;--bg3:#f0ede8;
+  --t1:#1a1a18;--t2:#5a5a56;--t3:#8a8a84;
+  --b1:rgba(0,0,0,0.09);--b2:rgba(0,0,0,0.18);--b3:rgba(0,0,0,0.30);
+  --r:8px;--rl:12px;--acc:#185FA5;--acc2:#E6F1FB;--acc3:#378ADD;
+  --f:system-ui,-apple-system,'Segoe UI',sans-serif;
+  --m:'JetBrains Mono','Fira Code',monospace;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#1e1e1c;--bg2:#272724;--bg3:#2e2e2b;
+  --t1:#e8e8e4;--t2:#a8a8a2;--t3:#6a6a64;
+  --b1:rgba(255,255,255,0.08);--b2:rgba(255,255,255,0.15);--b3:rgba(255,255,255,0.25);--acc2:#0c2a44;
+}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--f);background:var(--bg3);color:var(--t1);min-height:100vh}
+
+/* TOPBAR */
+.topbar{background:var(--bg);border-bottom:.5px solid var(--b1);padding:0 1.5rem;height:50px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.tl-bar{display:flex;align-items:center;gap:10px}
+.logo{width:28px;height:28px;border-radius:6px;background:linear-gradient(135deg,#185FA5,#378ADD);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;flex-shrink:0}
+.title{font-size:14px;font-weight:700}
+.ver{font-size:11px;padding:2px 8px;border-radius:20px;background:var(--bg2);border:.5px solid var(--b1);color:var(--t3)}
+.tr-bar{display:flex;align-items:center;gap:6px}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px;border:.5px solid transparent;user-select:none}
+.pill-grok-ok{background:#EAF3DE;color:#27500A;border-color:#97C459;cursor:pointer}
+.pill-grok-fail{background:#FCEBEB;color:#791F1F;border-color:#E8A4A4;cursor:pointer}
+.pill-grok-none{background:var(--bg2);color:var(--t2);border-color:var(--b1);cursor:pointer}
+.pill-grok-ok{background:#EAF3DE;color:#27500A;border-color:#97C459}
+.pill-grok-fail{background:#FCEBEB;color:#791F1F;border-color:#E8A4A4}
+.pill-grok-none{background:var(--bg2);color:var(--t2);border-color:var(--b1)}
+.pill-srv-ok{background:#EAF3DE;color:#27500A;border-color:#97C459}
+.pill-srv-fail{background:#FCEBEB;color:#791F1F;border-color:#E8A4A4}
+.pill-srv-chk{background:var(--bg2);color:var(--t2);border-color:var(--b1)}
+.pill-label{background:var(--bg2);color:var(--t2);border-color:var(--b1)}
+
+/* LAYOUT */
+.layout{display:grid;grid-template-columns:250px 1fr;min-height:calc(100vh - 50px)}
+.sidebar{background:var(--bg);border-right:.5px solid var(--b1);padding:1rem;display:flex;flex-direction:column;gap:1rem;overflow-y:auto}
+.main{padding:1.25rem;display:flex;flex-direction:column;gap:1rem;overflow-y:auto}
+.card{background:var(--bg);border:.5px solid var(--b1);border-radius:var(--rl);padding:1.1rem}
+
+/* SIDEBAR */
+.slbl{font-size:9.5px;font-weight:700;letter-spacing:.1em;color:var(--t3);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:4px}
+.pc{border:.5px solid var(--b1);border-radius:var(--r);padding:9px 11px;cursor:pointer;transition:all .13s;background:var(--bg2);margin-bottom:5px}
+.pc:last-child{margin-bottom:0}
+.pc:hover{background:var(--bg);border-color:var(--b2)}
+.pc.active{border:1.5px solid var(--acc);background:var(--acc2)}
+.pc .ph{display:flex;align-items:center;gap:7px;margin-bottom:3px}
+.pc .ph i{font-size:14px;color:var(--acc)}
+.pc .pn{font-size:12px;font-weight:600;font-family:var(--m);color:var(--t1)}
+.pc .pd{font-size:10.5px;color:var(--t2);line-height:1.4;margin-bottom:4px}
+.pc .pt{font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;display:inline-flex;align-items:center;gap:3px}
+.pt-xl{background:#E6F1FB;color:#0C447C}.pt-xlm{background:#EEEDFE;color:#3C3489}
+.fmt-wrap{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.fbdg{font-size:10px;font-weight:500;padding:2px 7px;border-radius:5px;background:var(--bg2);border:.5px solid var(--b1);color:var(--t2);font-family:var(--m)}
+.meta-lbl{display:block;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;margin-top:7px}
+.meta-lbl:first-child{margin-top:0}
+.meta-inp{width:100%;padding:5px 9px;font-size:12px;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t1);outline:none}
+.meta-inp:focus{border-color:var(--acc3)}
+.srv-row{display:flex;gap:5px;margin-top:4px}
+.srv-inp{flex:1;padding:5px 8px;font-size:11px;font-family:var(--m);border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t1);outline:none;min-width:0}
+.srv-inp:focus{border-color:var(--acc3)}
+.srv-btn{padding:5px 9px;font-size:11px;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);cursor:pointer;white-space:nowrap}
+.srv-btn:hover{border-color:var(--b3)}
+
+/* GROK MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:999;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--bg);border-radius:var(--rl);padding:1.5rem;width:390px;max-width:92vw;border:.5px solid var(--b2);box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.modal-hdr span{font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px}
+.modal-x{background:none;border:none;cursor:pointer;color:var(--t3);font-size:16px;padding:0}
+.key-inp-wrap{position:relative;margin-top:10px}
+.key-inp{width:100%;padding:8px 36px 8px 10px;font-size:12px;font-family:var(--m);border:.5px solid var(--b2);border-radius:var(--r);background:var(--bg2);color:var(--t1);outline:none}
+.key-inp:focus{border-color:var(--acc3)}
+.key-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--t3);font-size:13px;padding:0}
+.modal-note{font-size:10px;color:var(--t3);margin-top:6px;line-height:1.5}
+.modal-note a{color:var(--acc);text-decoration:none}
+.modal-btns{display:flex;gap:8px;margin-top:14px}
+.btn-save{flex:1;padding:8px;font-size:12px;font-weight:600;border:none;border-radius:var(--r);background:var(--acc);color:#fff;cursor:pointer}
+.btn-clear{padding:8px 14px;font-size:12px;font-weight:500;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);cursor:pointer}
+
+/* INPUT AREA */
+.card-lbl{font-size:9.5px;font-weight:700;letter-spacing:.1em;color:var(--t3);text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:5px}
+.itabs{display:flex;gap:0;border-bottom:.5px solid var(--b1);margin-bottom:.9rem}
+.itab{padding:7px 18px;font-size:12px;font-weight:500;border:none;background:transparent;color:var(--t2);cursor:pointer;border-bottom:2px solid transparent;transition:all .13s;margin-bottom:-0.5px}
+.itab.on{color:var(--acc);border-bottom-color:var(--acc);font-weight:600}
+.itab:hover:not(.on){color:var(--t1)}
+.accepts-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+.acc-lbl{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.07em}
+.abadge{font-size:11px;font-weight:500;padding:2px 8px;border-radius:6px;background:var(--bg2);border:.5px solid var(--b1);color:var(--t2);font-family:var(--m)}
+.subtabs{display:flex;border:.5px solid var(--b1);border-radius:var(--r);overflow:hidden;margin-bottom:9px}
+.stb{flex:1;padding:6px 0;font-size:12px;font-weight:500;text-align:center;border:none;background:transparent;color:var(--t2);cursor:pointer;transition:all .13s}
+.stb.on{background:var(--acc);color:#fff}
+.dz{border:1.5px dashed var(--b2);border-radius:var(--r);padding:2rem 1rem;text-align:center;cursor:pointer;transition:all .13s;min-height:95px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}
+.dz:hover,.dz.drag{border-color:var(--acc3);background:rgba(55,138,221,.05)}
+.dz i{font-size:26px;color:var(--t3)}
+.dz-t{font-size:13px;color:var(--t2)}.dz-s{font-size:11px;color:var(--t3)}
+.flist{display:flex;flex-direction:column;gap:4px;margin-top:7px}
+.fitem{display:flex;align-items:center;gap:8px;padding:5px 10px;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg);font-size:12px}
+.fitem i{color:var(--acc);font-size:13px;flex-shrink:0}
+.fitem .fn{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fitem .fsz{font-size:10px;color:var(--t3)}
+.fitem .fxt{font-size:10px;color:var(--t3);padding:1px 6px;background:var(--bg2);border-radius:4px;border:.5px solid var(--b1);font-family:var(--m)}
+.fitem .fdl{background:none;border:none;cursor:pointer;color:var(--t3);font-size:14px;padding:0;line-height:1}
+.fitem .fdl:hover{color:#E24B4A}
+.fcount{font-size:11px;color:var(--t3);margin-top:6px;display:flex;align-items:center;gap:4px}
+.gf label{display:block;font-size:11px;color:var(--t2);margin-bottom:3px;margin-top:8px}
+.gf label:first-child{margin-top:0}
+.gf input,.gf select{width:100%;padding:6px 9px;font-size:12px;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t1);outline:none;font-family:var(--m)}
+.gf input:focus,.gf select:focus{border-color:var(--acc3)}
+.git-note{font-size:10px;color:var(--t3);margin-top:7px;padding:6px 9px;background:var(--bg2);border-radius:var(--r);border-left:2px solid var(--b2);line-height:1.6}
+.git-warn{border-left-color:#E8C07A;background:#FAEEDA;color:#633806}
+.paste-sel label{font-size:11px;color:var(--t2);display:block;margin-bottom:3px}
+.paste-sel select{width:100%;padding:6px 9px;font-size:12px;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t1);outline:none}
+.paste-ta{width:100%;min-height:130px;resize:vertical;font-family:var(--m);font-size:12px;padding:10px 12px;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t1);outline:none;line-height:1.6;margin-top:8px}
+.paste-ta:focus{border-color:var(--acc3)}
+
+/* RUN BUTTON */
+.rbtn{width:100%;padding:12px;font-size:14px;font-weight:600;border:none;border-radius:var(--r);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .15s;background:var(--acc);color:#fff}
+.rbtn:hover{background:#0C447C;transform:translateY(-1px)}
+.rbtn:active{transform:translateY(0)}
+.rbtn:disabled{background:var(--bg2);color:var(--t3);border:.5px solid var(--b1);cursor:not-allowed;transform:none}
+
+/* RESULTS */
+.res-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem;flex-wrap:wrap;gap:8px}
+.res-left{display:flex;align-items:center;gap:8px}
+.res-left h3{font-size:15px;font-weight:600}
+.rbadge{font-size:11px;font-weight:500;padding:2px 9px;border-radius:20px;background:var(--acc2);color:var(--acc);border:.5px solid rgba(24,95,165,.25)}
+.dl-row{display:flex;gap:6px}
+.btn-xl{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;font-size:12px;font-weight:500;border-radius:var(--r);cursor:pointer;background:#EAF3DE;color:#3B6D11;border:.5px solid #97C459;transition:all .12s}
+.btn-xl:hover{background:#C0DD97}
+.btn-csv{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;font-size:12px;font-weight:500;border-radius:var(--r);cursor:pointer;background:var(--bg2);color:var(--t2);border:.5px solid var(--b1);transition:all .12s}
+.btn-csv:hover{border-color:var(--b3)}
+.srow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:.9rem}
+.scard{background:var(--bg2);border-radius:var(--r);padding:10px 14px}
+.scard .sv{font-size:24px;font-weight:700}.scard .sl{font-size:11px;color:var(--t3);margin-top:2px}
+.shtabs{display:flex;gap:4px;margin-bottom:.7rem;flex-wrap:wrap}
+.shtab{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:.5px solid var(--b1);background:transparent;color:var(--t2);transition:all .12s}
+.shtab.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.srch-row{margin-bottom:.7rem}
+.srch{display:flex;align-items:center;gap:7px;padding:6px 10px;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2)}
+.srch i{font-size:13px;color:var(--t3)}
+.srch input{border:none;background:transparent;font-size:13px;color:var(--t1);outline:none;flex:1;width:100%}
+.twrap{overflow-x:auto}
+table.rt{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+table.rt th{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;padding:6px 8px;border-bottom:.5px solid var(--b1);text-align:left;white-space:nowrap;background:var(--bg2)}
+table.rt td{padding:7px 8px;border-bottom:.5px solid var(--b1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table.rt tr:last-child td{border-bottom:none}
+table.rt tr:hover td{background:var(--bg2)}
+.bdg{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.b-blue{background:#E6F1FB;color:#0C447C}.b-teal{background:#E1F5EE;color:#085041}
+.b-amber{background:#FAEEDA;color:#633806}.b-purple{background:#EEEDFE;color:#3C3489}
+.b-coral{background:#FAECE7;color:#712B13}.b-green{background:#EAF3DE;color:#27500A}
+.b-red{background:#FCEBEB;color:#791F1F}.b-gray{background:#F1EFE8;color:#444441}
+.b-win{background:#F3E5F5;color:#4A148C}.b-join{background:#E3F2FD;color:#0D47A1}
+.empty{text-align:center;padding:2.5rem 2rem;color:var(--t3);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.empty i{font-size:34px;opacity:.25}.empty strong{font-size:14px;color:var(--t2);font-weight:500}
+.pbar{height:3px;background:var(--b1);border-radius:2px;overflow:hidden;margin-top:9px}
+.pfill{height:100%;background:var(--acc);border-radius:2px;animation:pg 1.8s ease-in-out infinite}
+@keyframes pg{0%{width:0%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0%;margin-left:100%}}
+.alert{padding:9px 13px;border-radius:var(--r);font-size:12px;display:flex;align-items:flex-start;gap:8px;margin-bottom:10px}
+.alert i{font-size:14px;flex-shrink:0;margin-top:1px}
+.alert.warn{background:#FAEEDA;color:#633806;border:.5px solid #E8C07A}
+.alert.err{background:#FCEBEB;color:#791F1F;border:.5px solid #E8A4A4}
+.alert.ok{background:#EAF3DE;color:#27500A;border:.5px solid #97C459}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:3px}
+@media(max-width:768px){.layout{grid-template-columns:1fr}.sidebar{border-right:none;border-bottom:.5px solid var(--b1)}.srow{grid-template-columns:repeat(2,1fr)}}
+
+/* OPTIONS TOGGLES */
+.opt-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:.5px solid var(--b1)}
+.opt-row:last-child{border-bottom:none}
+.opt-left .ot{font-size:12px;font-weight:500;color:var(--t1)}
+.opt-left .os{font-size:10px;color:var(--t3);display:block;margin-top:1px}
+.tog{position:relative;width:32px;height:18px;flex-shrink:0}
+.tog input{opacity:0;width:0;height:0;position:absolute}
+.tsl{position:absolute;inset:0;background:var(--b2);border-radius:18px;cursor:pointer;transition:.18s}
+.tsl:before{content:'';position:absolute;width:14px;height:14px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.18s}
+.tog input:checked+.tsl{background:var(--acc)}
+.tog input:checked+.tsl:before{transform:translateX(14px)}
+
+/* GROK API SECTION */
+.grok-status{border-radius:var(--r);padding:9px 11px;font-size:11px;margin-top:4px}
+.grok-ok{background:#EAF3DE;border:.5px solid #97C459;color:#27500A}
+.grok-fail{background:#FCEBEB;border:.5px solid #E8A4A4;color:#791F1F}
+.grok-none{background:var(--bg2);border:.5px solid var(--b1);color:var(--t2)}
+.grok-status .cs-hdr{display:flex;align-items:center;gap:5px;font-weight:600;margin-bottom:3px}
+.grok-status .cs-msg{font-size:10px;line-height:1.5;opacity:.85}
+.grok-test-btn{width:100%;margin-top:7px;padding:6px;font-size:11px;font-weight:500;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .12s}
+.grok-test-btn:hover{border-color:var(--b3)}
+.grok-hint{font-size:10px;color:var(--t3);margin-top:7px;line-height:1.5}
+
+/* GRAPH PANEL */
+.graph-panel{background:var(--bg);border:.5px solid var(--b1);border-radius:var(--rl);padding:1.1rem;margin-bottom:.8rem;display:none}
+.graph-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem;flex-wrap:wrap;gap:6px}
+.graph-hdr h4{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+.graph-svg{width:100%;overflow:auto;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2)}
+.graph-btn{padding:5px 12px;font-size:11px;font-weight:500;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all .12s}
+.graph-btn:hover{border-color:var(--b3);background:var(--bg)}
+.graph-btn.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+/* DRILL BUTTON */
+.drill-btn{padding:4px 12px;font-size:11px;font-weight:500;border:.5px solid var(--acc);border-radius:20px;background:var(--acc2);color:var(--acc);cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all .12s;margin-left:8px}
+.drill-btn:hover{background:var(--acc);color:#fff}
+.tbl-link{color:var(--acc);font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px;text-decoration-style:dotted}
+.tbl-link:hover{text-decoration-style:solid;opacity:.8}
+/* CIRCULAR WARNING BADGE */
+.circ-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:#FCEBEB;color:#791F1F;border:.5px solid #E8A4A4}
+/* META CODE HINT */
+.meta-code{font-size:10px;font-family:var(--m);background:var(--bg2);border:.5px solid var(--b1);border-radius:var(--r);padding:6px 8px;margin-top:7px;color:var(--t3);line-height:1.8}
+.meta-code .mk{color:#C75D2C}.meta-code .mv{color:#27500A}
+
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="tl-bar">
+    <div class="logo"><i class="ti ti-git-fork"></i></div>
+    <span class="title">Lineage Extraction Tool</span>
+    <span class="ver">v2.0</span>
+  </div>
+  <div class="tr-bar">
+    <!-- Grok API status pill — green tick if connected, red cross if not -->
+    <span class="pill pill-grok-none" id="grokPill">
+      <span id="grokDot">●</span>&nbsp;<span id="grokTxt">Grok</span>
+    </span>
+    <!-- Server status -->
+    <span class="pill pill-srv-chk" id="srvPill">
+      <span id="srvDot">●</span>&nbsp;<span id="srvTxt">checking...</span>
+    </span>
+    <!-- Active pipeline -->
+    <span class="pill pill-label" id="pipeLabel">lineage-extract</span>
+  </div>
+</header>
+
+<!-- GROK STATUS INFO (no key input needed - configured server-side) -->
+<div style="display:none" id="grokModal"></div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+
+  <div>
+    <div class="slbl"><i class="ti ti-terminal-2"></i> Pipeline</div>
+    <div id="pc-lineage" class="pc active" onclick="setPipe('lineage')">
+      <div class="ph"><i class="ti ti-git-fork"></i><span class="pn">lineage-extract</span></div>
+      <div class="pd">Source → target lineage from .sql, .py, .ipynb, .bteq, .xml, .dtsx</div>
+      <span class="pt pt-xl"><i class="ti ti-file-spreadsheet"></i> Excel: By Job + By Table</span>
+    </div>
+    <div id="pc-report" class="pc" onclick="setPipe('report')">
+      <div class="ph"><i class="ti ti-chart-bar"></i><span class="pn">report-extract</span></div>
+      <div class="pd">BI report lineage — Power BI, Looker, Qlik</div>
+      <span class="pt pt-xl"><i class="ti ti-file-spreadsheet"></i> Excel: per BI tool</span>
+    </div>
+    <div id="pc-e2e" class="pc" onclick="setPipe('e2e')">
+      <div class="ph"><i class="ti ti-git-merge"></i><span class="pn">e2e-lineage</span></div>
+      <div class="pd">Marry lineage + report Excel → source to report end-to-end flow</div>
+      <span class="pt pt-xl"><i class="ti ti-file-spreadsheet"></i> Excel: End-to-End Lineage</span>
+    </div>
+    <div id="pc-unified" class="pc" onclick="setPipe('unified')">
+      <div class="ph"><i class="ti ti-stack-2"></i><span class="pn">unified-extract</span></div>
+      <div class="pd">Drop any mix of ETL + BI files — auto-detect, dedup, circular check</div>
+      <span class="pt pt-xlm"><i class="ti ti-file-spreadsheet"></i> Excel: 5 sheets incl. Table Lineage</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="slbl"><i class="ti ti-files"></i> Supported Formats</div>
+    <div class="fmt-wrap">
+      <span class="fbdg">.sql</span><span class="fbdg">.py</span><span class="fbdg">.ipynb</span>
+      <span class="fbdg">.bteq</span><span class="fbdg">.xml</span><span class="fbdg">.dtsx</span>
+      <span class="fbdg">.yaml</span><span class="fbdg">.json</span><span class="fbdg">.lkml</span>
+      <span class="fbdg">.qvs</span><span class="fbdg">.twb</span><span class="fbdg">.pbit</span>
+      <span class="fbdg">.scala</span><span class="fbdg">.r</span><span class="fbdg">.sh</span>
+      <span class="fbdg">.tf</span><span class="fbdg">.rdl</span><span class="fbdg">.hql</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="slbl"><i class="ti ti-tag"></i> Pipeline Metadata</div>
+    <label class="meta-lbl">Domain</label>
+    <input class="meta-inp" type="text" id="mDomain" placeholder="e.g. finance">
+    <label class="meta-lbl">Subject_Area</label>
+    <input class="meta-inp" type="text" id="mSubject" placeholder="e.g. revenue">
+    <label class="meta-lbl">Schedule</label>
+    <input class="meta-inp" type="text" id="mSchedule" placeholder="e.g. 0 6 * * *">
+    <label class="meta-lbl">Owner</label>
+    <input class="meta-inp" type="text" id="mOwner" placeholder="e.g. data-team">
+    <!-- Code hint showing how to declare metadata in files -->
+    <div class="meta-code">
+      <span class="mk">Python:</span> <span class="mv">DOMAIN = "finance"</span><br>
+      <span class="mk">SQL:</span> <span style="color:var(--t3)">-- DOMAIN: Finance</span><br>
+      <span class="mk">LookML:</span> <span style="color:var(--t3)"># DOMAIN: Finance —&gt;</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="slbl"><i class="ti ti-adjustments-horizontal"></i> Options</div>
+    <div class="opt-row">
+      <div class="opt-left">
+        <span class="ot">Column-level lineage</span>
+        <span class="os">Key columns &amp; KPI metrics</span>
+      </div>
+      <label class="tog"><input type="checkbox" id="optColumnLevel" checked><span class="tsl"></span></label>
+    </div>
+    <div class="opt-row">
+      <div class="opt-left">
+        <span class="ot">Table-pivot sheet</span>
+        <span class="os">Second sheet keyed by table</span>
+      </div>
+      <label class="tog"><input type="checkbox" id="optTablePivot" checked><span class="tsl"></span></label>
+    </div>
+    <div class="opt-row">
+      <div class="opt-left">
+        <span class="ot" id="aiToggleLabel">Auto AI description</span>
+        <span class="os" id="aiToggleSub">AI description per job</span>
+      </div>
+      <label class="tog"><input type="checkbox" id="optAiDesc" checked onchange="onAiDescToggle()"><span class="tsl"></span></label>
+    </div>
+    <div class="opt-row">
+      <div class="opt-left">
+        <span class="ot">Include dependencies</span>
+        <span class="os">Add FILTER &amp; JOIN dependency rows (full lineage)</span>
+      </div>
+      <label class="tog"><input type="checkbox" id="optIncludeDeps"><span class="tsl"></span></label>
+    </div>
+  </div>
+
+  <div>
+    <div class="slbl"><i class="ti ti-plug"></i> Server</div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:5px">API base URL</div>
+    <div class="srv-row">
+      <input class="srv-inp" type="text" id="apiUrl" value="http://localhost:8000" onchange="checkServer();checkGrok();">
+      <button class="srv-btn" onclick="checkServer();checkGrok()"><i class="ti ti-refresh"></i> Re-check server</button>
+    </div>
+  </div>
+
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- Input card -->
+  <div class="card">
+    <div class="card-lbl"><i class="ti ti-upload"></i> Input — Pipeline Files</div>
+
+    <div class="itabs">
+      <button class="itab on" onclick="setITab('upload')">Upload files</button>
+      <button class="itab" onclick="setITab('paste')">Paste code</button>
+      <button class="itab" onclick="setITab('git')">Git repo</button>
+    </div>
+
+    <!-- UPLOAD TAB -->
+    <div id="inp-upload">
+      <div class="accepts-row" id="acceptsRow">
+        <span class="acc-lbl">Accepts:</span>
+        <span class="abadge">.sql</span><span class="abadge">.py</span>
+        <span class="abadge">.ipynb</span><span class="abadge">.bteq</span>
+        <span class="abadge">.xml</span><span class="abadge">.dtsx</span>
+      </div>
+      <div class="subtabs">
+        <button class="stb on" id="sub-individual" onclick="setSubTab('individual')">
+          <i class="ti ti-file" style="font-size:12px;margin-right:4px"></i>Individual files
+        </button>
+        <button class="stb" id="sub-folder" onclick="setSubTab('folder')">
+          <i class="ti ti-folder" style="font-size:12px;margin-right:4px"></i>Entire folder
+        </button>
+      </div>
+      <div class="dz" id="dropZone"
+           onclick="document.getElementById('fileInput').click()"
+           ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+        <i class="ti ti-cloud-upload"></i>
+        <div class="dz-t">Drop files here or click to browse</div>
+        <div class="dz-s">Multiple file formats supported — drop multiple files at once</div>
+      </div>
+      <input type="file" id="fileInput" style="display:none" multiple onchange="addFiles(event)">
+      <input type="file" id="folderInput" style="display:none" multiple webkitdirectory onchange="addFiles(event)">
+      <div class="flist" id="fileList"></div>
+      <div class="fcount" id="fileCount" style="display:none">
+        <i class="ti ti-clock" style="font-size:11px"></i>
+        <span id="fileCountTxt"></span>
+      </div>
+    </div>
+
+    <!-- GIT TAB -->
+    <div id="inp-git" style="display:none">
+      <div class="gf">
+        <label>Repository URL <span style="color:var(--t3)">(HTTPS or SSH)</span></label>
+        <input type="text" id="gitUrl" placeholder="https://github.com/org/repo">
+        <label>Branch</label>
+        <input type="text" id="gitBranch" value="main">
+        <label>Path filter <span style="color:var(--t3)">(optional)</span></label>
+        <input type="text" id="gitPath" placeholder="e.g. pipelines/finance">
+        <label>File types <span style="color:var(--t3)">(Ctrl+click for multiple)</span></label>
+        <select id="gitTypes" multiple style="height:88px;font-family:var(--f)">
+          <option value=".sql" selected>.sql / .ddl / .hql — SQL</option>
+          <option value=".py" selected>.py — Python / PySpark</option>
+          <option value=".ipynb" selected>.ipynb — Jupyter</option>
+          <option value=".yaml">.yaml / .yml — dbt / Airflow</option>
+          <option value=".json">.json — ADF / Glue</option>
+          <option value=".lkml">.lkml — Looker</option>
+          <option value=".qvs">.qvs — Qlik</option>
+          <option value=".twb">.twb / .twbx — Tableau</option>
+          <option value=".pbit">.pbit — Power BI</option>
+          <option value=".xml">.xml — ADF / SSRS</option>
+          <option value=".scala">.scala — Spark Scala</option>
+          <option value=".r">.r / .R — R</option>
+          <option value=".sh">.sh — Shell</option>
+          <option value=".tf">.tf — Terraform</option>
+        </select>
+      </div>
+      <div class="git-note" style="margin-top:8px">
+        Server clones the repo (shallow) and extracts lineage from all matching files.
+        File paths in the output are stored as full Git URLs.
+      </div>
+      <div class="git-note" style="margin-top:5px;color:var(--t2);font-size:11px">
+        <i class="ti ti-info-circle" style="font-size:11px"></i>
+        Uses <code style="font-family:var(--m)">git clone</code> — no extra packages required.
+      </div>
+    </div>
+
+    <!-- PASTE TAB -->
+    <div id="inp-paste" style="display:none">
+      <div class="paste-sel">
+        <label>Treat as file type</label>
+        <select id="pasteType">
+          <option value="query.sql">.sql — SQL / HiveQL / BigQuery</option>
+          <option value="pipeline.py">.py — Python / PySpark</option>
+          <option value="notebook.ipynb">.ipynb — Jupyter notebook</option>
+          <option value="pipeline.scala">.scala — Spark Scala</option>
+          <option value="pipeline.r">.r — R / SparkR</option>
+          <option value="pipeline.sh">.sh — Shell script</option>
+          <option value="report.lkml">.lkml — Looker LookML</option>
+          <option value="report.qvs">.qvs — Qlik script</option>
+          <option value="report.twb">.twb — Tableau workbook</option>
+          <option value="pipeline.yaml">.yaml — dbt / Airflow / ADF</option>
+          <option value="pipeline.json">.json — ADF / Glue / Databricks</option>
+          <option value="pipeline.xml">.xml — SSRS / ADF / XML</option>
+          <option value="pipeline.tf">.tf — Terraform HCL</option>
+          <option value="query.txt">.txt — Plain text</option>
+        </select>
+      </div>
+      <textarea class="paste-ta" id="pasteCode" placeholder="Paste SQL, PySpark, LookML, YAML, or any pipeline code here…"></textarea>
+    </div>
+
+    <!-- E2E TAB — two Excel file upload -->
+    <div id="inp-e2e" style="display:none">
+      <div style="font-size:12px;color:var(--t2);margin-bottom:12px;padding:9px 11px;background:var(--bg2);border-radius:var(--r);border:.5px solid var(--b1);line-height:1.7">
+        <strong>How it works:</strong> Upload the Excel from <strong>lineage-extract</strong> and the Excel from <strong>report-extract</strong>. The tool joins them where lineage target_table = report source table — building a complete source → pipeline → report end-to-end flow.
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px"><i class="ti ti-file-spreadsheet" style="color:#27500A"></i> Lineage Excel (from lineage-extract)</label>
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 11px;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2);cursor:pointer" onclick="document.getElementById('e2eLineageFile').click()">
+          <i class="ti ti-upload" style="color:var(--t3);font-size:13px"></i>
+          <span id="e2eLineageName" style="font-size:12px;color:var(--t2);flex:1">Click to select lineage_output.xlsx</span>
+          <span id="e2eLineageBadge" style="display:none;font-size:10px;padding:1px 7px;border-radius:10px;background:#EAF3DE;color:#27500A;border:.5px solid #97C459">✓ ready</span>
+        </div>
+        <input type="file" id="e2eLineageFile" accept=".xlsx" style="display:none" onchange="setE2EFile('lineage',this)">
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px"><i class="ti ti-file-spreadsheet" style="color:#712B13"></i> Report Excel (from report-extract)</label>
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 11px;border:.5px solid var(--b1);border-radius:var(--r);background:var(--bg2);cursor:pointer" onclick="document.getElementById('e2eReportFile').click()">
+          <i class="ti ti-upload" style="color:var(--t3);font-size:13px"></i>
+          <span id="e2eReportName" style="font-size:12px;color:var(--t2);flex:1">Click to select reporting_lineage_output.xlsx</span>
+          <span id="e2eReportBadge" style="display:none;font-size:10px;padding:1px 7px;border-radius:10px;background:#EAF3DE;color:#27500A;border:.5px solid #97C459">✓ ready</span>
+        </div>
+        <input type="file" id="e2eReportFile" accept=".xlsx" style="display:none" onchange="setE2EFile('report',this)">
+      </div>
+    </div>
+  </div>
+
+  <!-- Re-run button -->
+  <button class="rbtn" id="runBtn" onclick="runExtraction()">
+    <i class="ti ti-player-play"></i> <span id="runLabel">Run lineage-extract</span>
+  </button>
+
+  <!-- Lineage Graph Panel -->
+  <div class="graph-panel" id="graphPanel">
+    <div class="graph-hdr">
+      <h4><i class="ti ti-topology-star-3"></i> Lineage Graph
+        <span id="graphDrillPath" style="font-size:11px;font-weight:400;color:var(--t3);margin-left:4px"></span>
+      </h4>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <button class="graph-btn active" id="gv-table" onclick="setGraphView('table')"><i class="ti ti-table"></i> Table view</button>
+        <button class="graph-btn" id="gv-flow" onclick="setGraphView('flow')"><i class="ti ti-git-branch"></i> Flow graph</button>
+        <button class="graph-btn" onclick="resetGraphFilter()"><i class="ti ti-arrows-maximize"></i> Reset filter</button>
+      </div>
+    </div>
+    <div style="margin-bottom:8px;padding:6px 10px;background:var(--acc2);border-radius:var(--r);border:.5px solid rgba(24,95,165,.2);font-size:11px;color:var(--t2);line-height:1.6">
+      <i class="ti ti-hand-click" style="font-size:13px;color:var(--acc)"></i>
+      <strong>Click any table name</strong> (blue underlined) to instantly see all its column-level lineage — which columns flow <em>from</em> it and which flow <em>into</em> it.
+      Use <strong>← Table Lineage</strong> breadcrumb to come back.
+    </div>
+    <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
+      <div class="srch" style="max-width:300px">
+        <i class="ti ti-search"></i>
+        <input type="text" placeholder="Filter by table name…" oninput="filterGraph(this.value)" id="graphSearch" style="border:none;background:transparent;font-size:12px;color:var(--t1);outline:none;flex:1">
+      </div>
+      <span id="graphFilterBadge" style="display:none;font-size:11px;color:var(--t3)"></span>
+    </div>
+    <div id="graphTableView"></div>
+    <svg id="graphSvg" class="graph-svg" style="display:none;min-height:300px"></svg>
+  </div>
+
+  <!-- Results card -->
+  <div class="card">
+    <div class="res-hdr">
+      <div class="res-left">
+        <h3>Results</h3>
+        <span class="rbadge" id="resBadge" style="display:none">lineage</span>
+      </div>
+      <!-- Always-visible once results exist -->
+      <div class="dl-row" id="dlRow" style="display:none">
+        <button class="btn-xl" onclick="downloadExcel()">
+          <i class="ti ti-file-spreadsheet"></i> Download Excel
+        </button>
+        <button class="btn-csv" onclick="downloadCSV()">
+          <i class="ti ti-file-text"></i> CSV (current tab)
+        </button>
+      </div>
+    </div>
+
+    <div id="alertBox"></div>
+
+    <div id="loadDiv" style="display:none">
+      <div style="font-size:13px;color:var(--t2);display:flex;align-items:center;gap:8px">
+        <i class="ti ti-loader-2" style="color:var(--acc);font-size:16px"></i>
+        <span id="loadMsg">Extracting column-level lineage…</span>
+      </div>
+      <div class="pbar"><div class="pfill"></div></div>
+    </div>
+
+    <div id="emptyDiv" class="empty">
+      <i class="ti ti-git-branch"></i>
+      <strong>No results yet</strong>
+      <span id="emptyDesc">Upload files and run extraction — results including By Job, By Table, and AI descriptions will appear here</span>
+    </div>
+
+    <div id="resContent" style="display:none">
+      <div class="srow" id="statsRow"></div>
+      <div class="shtabs" id="sheetTabs"></div>
+      <div class="srch-row">
+        <div class="srch">
+          <i class="ti ti-search"></i>
+          <input type="text" placeholder="Search tables, columns, file paths…" oninput="filterRows()" id="srchIn">
+        </div>
+      </div>
+      <!-- Drill breadcrumb: shown when user drilled from table→column view -->
+    <div id="drillBreadcrumb" style="display:none;align-items:center;margin-bottom:8px;padding:7px 10px;background:var(--acc2);border-radius:var(--r);border:.5px solid rgba(24,95,165,.25);gap:0;flex-wrap:wrap"></div>
+    <div class="twrap">
+        <table class="rt"><thead id="tHead"></thead><tbody id="tBody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+let iTab='upload', subTab='individual', pipe='lineage';
+let files=[], allData={}, activeSheet='', lastBlob=null;
+let drillState=null; // {tableName} when user drilled from table→column view
+
+// ── Options toggle handlers ───────────────────────────────────────────────
+function onAiDescToggle(){ /* AI descriptions toggle — no UI action needed, server uses GROK_API_KEY */ }
+
+// ── AI provider name — set once from server, used everywhere ─────────────
+let aiProviderLabel = 'AI';  // Will be updated to 'Groq', 'ChatGPT', 'Claude' etc.
+
+function updateAiLabels(label) {
+  aiProviderLabel = label || 'AI';
+  // 1. Sidebar options toggle label
+  const togLbl = document.getElementById('aiToggleLabel');
+  if(togLbl) togLbl.textContent = `Auto ${aiProviderLabel} description`;
+  // 2. Sidebar options toggle sub-label
+  const togSub = document.getElementById('aiToggleSub');
+  if(togSub) togSub.textContent = `${aiProviderLabel} AI description per job`;
+  // 3. Empty state description text
+  const emptyDesc = document.getElementById('emptyDesc');
+  if(emptyDesc) emptyDesc.textContent = `Upload files and run extraction — results including By Job, By Table, and ${aiProviderLabel} descriptions will appear here`;
+  // 4. Job Summary column header
+  const sumHdr = document.getElementById('aiSumHdr');
+  if(sumHdr) sumHdr.textContent = `${aiProviderLabel} Description`;
+}
+
+// ── AI API status pill — shows exact provider name from server ────────────
+async function checkGrok(){
+  const p=document.getElementById('grokPill'), dot=document.getElementById('grokDot'), txt=document.getElementById('grokTxt');
+  p.className='pill pill-grok-none'; dot.textContent='●'; txt.textContent='AI';
+  try{
+    const r=await fetch(apiBase()+'/grok-status',{signal:AbortSignal.timeout(10000)});
+    if(r.ok){
+      const data=await r.json();
+      const label = data.provider_label || 'AI';
+      // Update all labels across the UI
+      updateAiLabels(label);
+      if(data.connected===true){
+        p.className='pill pill-grok-ok';
+        dot.textContent='✓';
+        txt.textContent=`${label} ✓ online`;
+      } else {
+        p.className='pill pill-grok-fail';
+        dot.textContent='✕';
+        txt.textContent=`${label} ✕ not connected`;
+      }
+    } else {
+      p.className='pill pill-grok-fail'; dot.textContent='✕'; txt.textContent='AI ✕ not connected';
+    }
+  }catch{
+    p.className='pill pill-grok-fail'; dot.textContent='✕'; txt.textContent='AI ✕ not connected';
+  }
+}
+
+// ── Server health ─────────────────────────────────────────────────────────
+function apiBase(){ return (document.getElementById('apiUrl').value||'http://localhost:8000').replace(/\/$/,''); }
+async function checkServer(){
+  const p=document.getElementById('srvPill'), dot=document.getElementById('srvDot'), txt=document.getElementById('srvTxt');
+  p.className='pill pill-srv-chk'; dot.textContent='●'; txt.textContent='checking...';
+  try{
+    const r=await fetch(apiBase()+'/health',{signal:AbortSignal.timeout(3000)});
+    if(r.ok){ p.className='pill pill-srv-ok'; dot.textContent='✓'; txt.textContent='server online'; }
+    else    { p.className='pill pill-srv-fail'; dot.textContent='✕'; txt.textContent='server error'; }
+  }catch{ p.className='pill pill-srv-fail'; dot.textContent='●'; txt.textContent='server offline'; }
+}
+// Init
+checkServer();
+checkGrok();
+setInterval(checkServer,30000);
+setInterval(checkGrok,60000);
+
+// ── Pipeline switching ────────────────────────────────────────────────────
+const PIPES={
+  lineage:{label:'lineage-extract', endpoint:'/extract/upload', badge:'lineage', cls:'b-blue',
+           accept:'.sql,.py,.ipynb,.json,.yaml,.yml,.xml,.dtsx,.bteq,.scala,.r,.sh,.tf,.rdl,.hql',
+           accepts:['.sql','.py','.ipynb','.json','.yaml','.yml','.xml','.dtsx','.bteq','.scala','.r','.sh','.tf','.rdl','.hql'],
+           pasteTypes:[
+             {v:'query.sql',      l:'.sql — SQL / HiveQL / BigQuery'},
+             {v:'pipeline.py',    l:'.py — Python / PySpark'},
+             {v:'notebook.ipynb', l:'.ipynb — Jupyter notebook'},
+             {v:'pipeline.scala', l:'.scala — Spark Scala'},
+             {v:'pipeline.r',     l:'.r — R / SparkR'},
+             {v:'pipeline.sh',    l:'.sh — Shell script'},
+             {v:'pipeline.yaml',  l:'.yaml — dbt / Airflow / ADF'},
+             {v:'pipeline.json',  l:'.json — ADF / Glue / Databricks'},
+             {v:'pipeline.xml',   l:'.xml — SSRS / ADF / ARM'},
+             {v:'pipeline.tf',    l:'.tf — Terraform HCL'},
+           ],
+           gitTypes:['.sql','.py','.ipynb','.json','.yaml','.yml','.xml','.dtsx','.bteq','.scala','.r','.sh','.tf','.rdl','.hql']},
+  report: {label:'report-extract',  endpoint:'/extract/report', badge:'report',  cls:'b-coral',
+           accept:'.pbit,.lkml,.qvs',
+           accepts:['.pbit','.lkml','.qvs'],
+           pasteTypes:[{v:'report.lkml',l:'.lkml — LookML'},{v:'report.pbit',l:'.pbit — Power BI'},{v:'report.qvs',l:'.qvs — Qlik script'}],
+           gitTypes:['.pbit','.lkml','.qvs']},
+  e2e:    {label:'e2e-lineage',      endpoint:'/extract/e2e',    badge:'e2e',     cls:'b-teal',
+           accept:'.xlsx',
+           accepts:['.xlsx'],
+           pasteTypes:[],
+           gitTypes:[]},
+  unified:{label:'unified-extract',  endpoint:'/extract/unified', badge:'unified',  cls:'b-purple',
+           accept:'.sql,.py,.ipynb,.json,.yaml,.yml,.xml,.scala,.r,.sh,.tf,.pbit,.lkml,.qvs,.rdl,.hql',
+           accepts:['.sql','.py','.ipynb','.json','.yaml','.yml','.xml','.scala','.r','.sh','.tf','.pbit','.lkml','.qvs','.rdl','.hql'],
+           pasteTypes:[
+             {v:'query.sql',l:'.sql — SQL'},{v:'pipeline.py',l:'.py — PySpark'},
+             {v:'report.lkml',l:'.lkml — Looker'},{v:'report.pbit',l:'.pbit — Power BI'},
+             {v:'report.qvs',l:'.qvs — Qlik'},{v:'pipeline.yaml',l:'.yaml — dbt/Airflow'},
+           ],
+           gitTypes:['.sql','.py','.ipynb','.json','.yaml','.yml','.xml','.scala','.r','.sh','.tf','.pbit','.lkml','.qvs']},
+};
+
+// E2E file state
+let e2eFiles = {lineage: null, report: null};
+function setE2EFile(type, input){
+  const f = input.files[0];
+  if(!f) return;
+  e2eFiles[type] = f;
+  const nm = document.getElementById('e2e'+type.charAt(0).toUpperCase()+type.slice(1)+'Name');
+  const bg = document.getElementById('e2e'+type.charAt(0).toUpperCase()+type.slice(1)+'Badge');
+  if(nm) nm.textContent = f.name;
+  if(bg) bg.style.display = 'inline-block';
+  input.value = '';
+}
+
+function setPipe(p){
+  pipe=p;
+  const cfg=PIPES[p];
+  ['lineage','report','e2e','unified'].forEach(x=>{
+    const el=document.getElementById('pc-'+x);
+    if(el) el.classList.toggle('active',x===p);
+  });
+  document.getElementById('pipeLabel').textContent=cfg.label;
+  document.getElementById('runLabel').textContent='Run '+cfg.label;
+  const b=document.getElementById('resBadge'); b.textContent=cfg.badge; b.className='rbadge '+cfg.cls;
+
+  // For e2e pipeline — switch to e2e tab, hide normal tabs
+  const itabsEl = document.querySelector('.itabs');
+  const e2eTab  = document.getElementById('inp-e2e');
+  if(p==='e2e'){
+    // Hide upload/paste/git tabs, show e2e tab
+    ['upload','paste','git'].forEach(id=>document.getElementById('inp-'+id).style.display='none');
+    if(e2eTab) e2eTab.style.display='block';
+    if(itabsEl) itabsEl.style.display='none';
+  } else {
+    // Restore normal tabs
+    if(itabsEl) itabsEl.style.display='flex';
+    if(e2eTab) e2eTab.style.display='none';
+    // Show the currently active normal tab
+    ['upload','paste','git'].forEach(id=>document.getElementById('inp-'+id).style.display=id===iTab?'block':'none');
+    // Update file input accept
+    document.getElementById('fileInput').accept=cfg.accept;
+    document.getElementById('folderInput').accept=cfg.accept;
+    // Update accepts badges
+    const accRow=document.getElementById('acceptsRow');
+    if(accRow) accRow.innerHTML='<span class="acc-lbl">Accepts:</span>'+cfg.accepts.map(a=>`<span class="abadge">${a}</span>`).join('');
+    // Update paste type dropdown
+    const sel=document.getElementById('pasteType');
+    if(sel && cfg.pasteTypes.length) sel.innerHTML=cfg.pasteTypes.map(t=>`<option value="${t.v}">${t.l}</option>`).join('');
+    // Update Git file types
+    const gts=document.getElementById('gitTypes');
+    if(gts) Array.from(gts.options).forEach(o=>{ o.selected=cfg.gitTypes.includes(o.value); });
+  }
+
+  renderFileList();
+  hideResults(); clearAlerts();  // hideResults now also clears allData and graphPanel
+}
+
+// ── Input tabs ────────────────────────────────────────────────────────────
+function setITab(t){
+  iTab=t;
+  ['upload','paste','git'].forEach(id=>document.getElementById('inp-'+id).style.display=id===t?'block':'none');
+  document.querySelectorAll('.itab').forEach((b,i)=>b.classList.toggle('on',['upload','paste','git'][i]===t));
+}
+
+// ── Sub-tabs ──────────────────────────────────────────────────────────────
+function setSubTab(st){
+  subTab=st;
+  ['individual','folder'].forEach(x=>document.getElementById('sub-'+x).classList.toggle('on',x===st));
+  if(st==='individual') document.getElementById('dropZone').onclick=()=>document.getElementById('fileInput').click();
+  else                  document.getElementById('dropZone').onclick=()=>document.getElementById('folderInput').click();
+}
+
+// ── File handling ─────────────────────────────────────────────────────────
+function onDragOver(e){ e.preventDefault(); document.getElementById('dropZone').classList.add('drag'); }
+function onDragLeave(){ document.getElementById('dropZone').classList.remove('drag'); }
+function onDrop(e){ e.preventDefault(); onDragLeave(); addFilesToList(Array.from(e.dataTransfer.files)); }
+function addFiles(e){ addFilesToList(Array.from(e.target.files)); e.target.value=''; }
+function addFilesToList(nf){ nf.forEach(f=>{ if(!files.find(x=>x.name===f.name)) files.push(f); }); renderFileList(); }
+function removeFile(n){ files=files.filter(f=>f.name!==n); renderFileList(); }
+function fmtSz(b){ return b>1048576?(b/1048576).toFixed(1)+'MB':b>1024?(b/1024).toFixed(0)+'KB':b+'B'; }
+function renderFileList(){
+  const cfg=PIPES[pipe];
+  document.getElementById('fileList').innerHTML=files.map(f=>{
+    const ext='.'+f.name.split('.').pop().toLowerCase();
+    const compatible=cfg.accepts.includes(ext);
+    const extBadge=compatible
+      ? `<span class="fxt" style="background:#EAF3DE;color:#27500A;border-color:#97C459">${ext}</span>`
+      : `<span class="fxt" style="background:#FCEBEB;color:#791F1F;border-color:#E8A4A4" title="Not supported by ${cfg.label}">${ext} ✕</span>`;
+    return `<div class="fitem"><i class="ti ti-file-code" style="color:${compatible?'var(--acc)':'#E24B4A'}"></i><span class="fn">${f.name}</span><span class="fsz">${fmtSz(f.size)}</span>${extBadge}<button class="fdl" onclick="removeFile('${f.name.replace(/'/g,"\\'")}')">✕</button></div>`;
+  }).join('');
+  const fc=document.getElementById('fileCount');
+  if(files.length>0){
+    const incompatible=files.filter(f=>!cfg.accepts.includes('.'+f.name.split('.').pop().toLowerCase()));
+    let countTxt=`${files.length} file(s) ready · ${fmtSz(files.reduce((s,f)=>s+f.size,0))}`;
+    if(incompatible.length>0) countTxt+=` · ⚠ ${incompatible.length} incompatible with ${cfg.label}`;
+    document.getElementById('fileCountTxt').textContent=countTxt;
+    fc.style.display='flex';
+  } else fc.style.display='none';
+}
+
+// ── Alerts ────────────────────────────────────────────────────────────────
+function clearAlerts(){ document.getElementById('alertBox').innerHTML=''; }
+function showAlert(type,msg){
+  const icons={warn:'ti-alert-triangle',err:'ti-circle-x',ok:'ti-circle-check'};
+  document.getElementById('alertBox').innerHTML=`<div class="alert ${type}"><i class="ti ${icons[type]}"></i><span>${msg}</span></div>`;
+}
+
+// ── Extraction ────────────────────────────────────────────────────────────
+async function runExtraction(){
+  clearAlerts();
+  const btn=document.getElementById('runBtn');
+  btn.disabled=true; btn.innerHTML='<i class="ti ti-loader-2"></i> Running…';
+  document.getElementById('emptyDiv').style.display='none';
+  document.getElementById('resContent').style.display='none';
+  document.getElementById('loadDiv').style.display='block';
+  // ── Fix 1: load message reflects selected pipeline ──────────────────────
+  const loadMsgs={
+    lineage:'Running lineage-extract — extracting column-level lineage…',
+    report:'Running report-extract — extracting BI report lineage…',
+    e2e:'Building end-to-end lineage — joining lineage + report…',
+    unified:'Running unified-extract — auto-detecting formats, deduplicating, extracting…'
+  };
+  document.getElementById('loadMsg').textContent=loadMsgs[pipe]||'Running extraction…';
+
+  let resp;
+  try{
+    const aiOn=document.getElementById('optAiDesc').checked;
+    const depsOn=document.getElementById('optIncludeDeps')?.checked||false;
+
+    // ── E2E pipeline — two Excel file upload ────────────────────────────────
+    if(pipe==='e2e'){
+      if(!e2eFiles.lineage){ showAlert('warn','Please select the lineage Excel file.'); resetBtn(); return; }
+      if(!e2eFiles.report){  showAlert('warn','Please select the report Excel file.');  resetBtn(); return; }
+      const fd=new FormData();
+      fd.append('lineage_file', e2eFiles.lineage, e2eFiles.lineage.name);
+      fd.append('report_file',  e2eFiles.report,  e2eFiles.report.name);
+      resp=await fetch(apiBase()+'/extract/e2e',{method:'POST',body:fd});
+
+    } else if(iTab==='upload'){
+      if(!files.length){ showAlert('warn','Please upload at least one file.'); resetBtn(); return; }
+
+      // ── FIX 2: Validate file compatibility with selected pipeline ──────────
+      const cfg=PIPES[pipe];
+      const compatible=files.filter(f=>cfg.accepts.includes('.'+f.name.split('.').pop().toLowerCase()));
+      const incompatible=files.filter(f=>!cfg.accepts.includes('.'+f.name.split('.').pop().toLowerCase()));
+      if(compatible.length===0){
+        const incompatibleExts=[...new Set(incompatible.map(f=>'.'+f.name.split('.').pop().toLowerCase()))].join(', ');
+        showAlert('err',
+          `None of your uploaded files are compatible with <strong>${cfg.label}</strong>.<br>` +
+          `You uploaded: <strong>${incompatibleExts}</strong><br>` +
+          `${cfg.label} only accepts: <strong>${cfg.accepts.join(', ')}</strong><br>` +
+          `Please switch to the correct pipeline or upload the right file type.`
+        );
+        resetBtn(); return;
+      }
+      if(incompatible.length>0){
+        // Warn but continue with only compatible files
+        showAlert('warn',
+          `${incompatible.length} incompatible file(s) will be skipped: ` +
+          `${incompatible.map(f=>f.name).join(', ')}<br>` +
+          `Processing ${compatible.length} compatible file(s) with ${cfg.label}.`
+        );
+      }
+
+      const fd=new FormData();
+      compatible.forEach(f=>fd.append('files',f,f.name));
+      if(pipe==='lineage') fd.append('include_ai_descriptions', aiOn?'true':'false');
+      if(pipe==='lineage'||pipe==='unified') fd.append('include_dependencies', depsOn?'true':'false');
+      resp=await fetch(apiBase()+PIPES[pipe].endpoint,{method:'POST',body:fd});
+    } else if(iTab==='git'){
+      const url=document.getElementById('gitUrl').value.trim();
+      if(!url){ showAlert('warn','Please enter a repository URL.'); resetBtn(); return; }
+      resp=await fetch(apiBase()+'/extract/from-git',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          repo_url:url,
+          branch:document.getElementById('gitBranch').value.trim()||'main',
+          path_filter:document.getElementById('gitPath').value.trim(),
+          file_types:Array.from(document.getElementById('gitTypes').selectedOptions).map(o=>o.value),
+          include_ai_descriptions:aiOn,
+          include_dependencies:depsOn,
+          pipeline:pipe
+        })
+      });
+    } else {
+      const code=document.getElementById('pasteCode').value.trim();
+      if(!code){ showAlert('warn','Please paste some code first.'); resetBtn(); return; }
+      const fd=new FormData();
+      fd.append('files',new Blob([code],{type:'text/plain'}),document.getElementById('pasteType').value);
+      if(pipe==='lineage') fd.append('include_ai_descriptions', aiOn?'true':'false');
+      if(pipe==='lineage'||pipe==='unified') fd.append('include_dependencies', depsOn?'true':'false');
+      resp=await fetch(apiBase()+PIPES[pipe].endpoint,{method:'POST',body:fd});
+    }
+
+    document.getElementById('loadDiv').style.display='none';
+
+    if(!resp.ok){
+      let d=''; try{const j=await resp.json();d=JSON.stringify(j.detail||j,null,2);}catch{}
+      hideResults();   // clears allData, hides graph panel and old results
+      showAlert('err',`Server ${resp.status}.<br><pre style="font-size:10px;margin-top:4px;white-space:pre-wrap">${d}</pre>`);
+      document.getElementById('emptyDiv').style.display='flex'; resetBtn(); return;
+    }
+
+    // ── Fix 2: read correct record count header for each pipeline ───────────
+    const nL = parseInt(
+      resp.headers.get('X-Lineage-Rows') ||
+      resp.headers.get('X-Records-Count') ||
+      '0'
+    );
+    const nE = parseInt(resp.headers.get('X-Errors-Count')||'0');
+
+    // ── Fix 3: success message reflects selected pipeline ───────────────────
+    const pipeNames={lineage:'lineage',etl:'ETL migration',report:'BI report',e2e:'end-to-end lineage',unified:'unified'};
+    if(nE>0) showAlert('warn',`${nE} file(s) had parse errors. ${nL} ${pipeNames[pipe]} records extracted.`);
+    else if(nL>0) showAlert('ok',`✓ ${nL} ${pipeNames[pipe]} records extracted successfully.`);
+    // If nL==0 with no errors: don't block — still render the Excel (e.g. only job summary rows)
+
+    lastBlob=await resp.blob();
+    await parseExcel(lastBlob);
+    document.getElementById('resBadge').style.display='inline-block';
+    document.getElementById('dlRow').style.display='flex';
+
+  }catch(err){
+    document.getElementById('loadDiv').style.display='none';
+    hideResults();     // clears allData, hides graph panel and old results
+    showAlert('err',`Cannot reach server at <strong>${apiBase()}</strong>. ${err.message}`);
+  }
+  resetBtn();
+}
+
+function resetBtn(){
+  const b=document.getElementById('runBtn');
+  b.disabled=false;
+  // ── Fix 4: run button label always reflects currently selected pipeline ──
+  b.innerHTML=`<i class="ti ti-player-play"></i> <span id="runLabel">Run ${PIPES[pipe].label}</span>`;
+}
+function hideResults(){
+  drillState=null;
+  activeSheet='';
+  allData={};          // clear parsed Excel data so old results never bleed through
+  lastBlob=null;
+  const bc=document.getElementById('drillBreadcrumb'); if(bc) bc.style.display='none';
+  const gp=document.getElementById('graphPanel');      if(gp) gp.style.display='none';
+  document.getElementById('resContent').style.display='none';
+  document.getElementById('emptyDiv').style.display='flex';
+  document.getElementById('dlRow').style.display='none';
+  document.getElementById('resBadge').style.display='none';
+}
+
+// ── Excel parsing ─────────────────────────────────────────────────────────
+async function parseExcel(blob){
+  const buf=await blob.arrayBuffer(), wb=XLSX.read(buf,{type:'array'});
+  allData={};
+  wb.SheetNames.forEach(name=>{
+    const ws=wb.Sheets[name], raw=XLSX.utils.sheet_to_json(ws,{header:1});
+    if(raw.length<2){allData[name]=[];return;}
+    const hdrs=raw[0];
+    allData[name]=raw.slice(1).map(row=>{const o={};hdrs.forEach((h,i)=>{o[h]=row[i]!==undefined?String(row[i]):'';});return o;});
+  });
+  renderResults();
+}
+
+// ── Column defs ───────────────────────────────────────────────────────────
+const COL_TBL=[{k:'source_database',l:'Src DB',w:'9%'},{k:'source_table',l:'Source Table',w:'15%'},{k:'target_database',l:'Tgt DB',w:'9%'},{k:'target_table',l:'Target Table',w:'15%'},{k:'column_count',l:'Cols',w:'6%'},{k:'operations',l:'Operations',w:'12%'},{k:'job_names',l:'Jobs',w:'20%'},{k:'file_types',l:'Types',w:'14%'}];
+const COL_CIRC=[{k:'table_name',l:'Table',w:'30%'},{k:'appears_as',l:'Appears As',w:'25%'},{k:'warning',l:'Warning',w:'45%'}];
+const COL_DUP=[{k:'removed_file',l:'Removed File',w:'28%'},{k:'duplicate_of',l:'Duplicate Of',w:'28%'},{k:'reason',l:'Reason',w:'30%'},{k:'size_bytes',l:'Size (bytes)',w:'14%'}];
+const COL_NEW=[{k:'file_path',l:'File Path',w:'16%'},{k:'file_type',l:'Type',w:'7%'},{k:'job_name',l:'Job Name',w:'11%'},{k:'source_database',l:'Src DB',w:'7%'},{k:'source_table',l:'Source Table',w:'10%'},{k:'source_column',l:'Source Col',w:'9%'},{k:'target_database',l:'Tgt DB',w:'7%'},{k:'target_table',l:'Target Table',w:'10%'},{k:'target_column',l:'Target Col',w:'9%'},{k:'sql_operation',l:'Operation',w:'8%'}];
+const COL_SUM=[{k:'file_path',l:'File Path',w:'16%'},{k:'file_type',l:'Type',w:'7%'},{k:'job_name',l:'Job Name',w:'12%'},{k:'source_tables',l:'Source Tables',w:'14%'},{k:'target_tables',l:'Target Tables',w:'14%'},{k:'operations_summary',l:'Operations',w:'10%'},{k:'job_description',l:'AI Description',w:'27%',dynId:'aiSumHdr'}];
+const COL_OLD=[{k:'domain',l:'Domain',w:'9%'},{k:'subject_area',l:'Subject Area',w:'9%'},{k:'job_name',l:'Job Name',w:'13%'},{k:'file_path',l:'File Path',w:'11%'},{k:'source_tables',l:'Source Tables',w:'12%'},{k:'target_tables',l:'Target Tables',w:'12%'},{k:'key_columns',l:'Key Columns',w:'10%'},{k:'kpi_metrics',l:'KPI Metrics',w:'10%'},{k:'job_type',l:'Type',w:'7%'},{k:'schedule',l:'Schedule',w:'7%'}];
+const COL_ETL=[{k:'domain',l:'Domain',w:'8%'},{k:'file_type',l:'Type',w:'7%'},{k:'job_name',l:'Job Name',w:'12%'},{k:'source_database',l:'Src DB',w:'8%'},{k:'source_table',l:'Src Table',w:'10%'},{k:'target_database',l:'Tgt DB',w:'8%'},{k:'target_table',l:'Tgt Table',w:'10%'},{k:'constructs_found',l:'Constructs',w:'12%'},{k:'has_udf',l:'UDF',w:'5%'},{k:'has_delta_ops',l:'Delta',w:'5%'},{k:'complexity',l:'Complexity',w:'9%'}];
+const COL_E2E=[{k:'source_database',l:'Src DB',w:'8%'},{k:'source_table',l:'Source Table',w:'11%'},{k:'source_column',l:'Source Col',w:'9%'},{k:'lineage_job',l:'Lineage Job',w:'10%'},{k:'lineage_file_path',l:'Lineage File',w:'10%'},{k:'lineage_operation',l:'Operation',w:'8%'},{k:'intermediate_table',l:'Intermediate Table',w:'11%'},{k:'report_job',l:'Report Job',w:'10%'},{k:'report_file',l:'Report File',w:'9%'},{k:'report_name',l:'Report Name',w:'9%'},{k:'tool_name',l:'BI Tool',w:'5%'}];
+const OP_C={SELECT:'b-blue',AGGREGATE:'b-teal',JOIN:'b-join',FILTER:'b-amber',WINDOW:'b-win',ALIAS:'b-purple',UNKNOWN:'b-gray'};
+const TY_C={SQL:'b-blue',PySpark:'b-purple','Spark Scala':'b-teal',Looker:'b-green',Qlik:'b-coral',Tableau:'b-amber',PowerBI:'b-blue'};
+const CX_C={direct:'b-green',rewrite:'b-amber',manual:'b-red'};
+
+// ── Render ────────────────────────────────────────────────────────────────
+function renderResults(){
+  const sheets=Object.keys(allData);
+  if(!sheets.length){document.getElementById('emptyDiv').style.display='flex';return;}
+  activeSheet=sheets[0];
+  const r0=(allData[sheets[0]]||[])[0]||{};
+  const r1=(allData[sheets[1]]||[]);
+  const allR=Object.values(allData).flat();
+
+  let stats;
+  const tblData=allData['Table Lineage']||[];
+  const colData=allData['Column Lineage']||[];
+  const circData=allData['Circular Dependencies']||[];
+  const dupData=allData['Duplicates']||[];
+  if(tblData.length>0 && colData.length>0){
+    const nCirc=circData.filter(r=>r.table_name&&r.table_name!=='—').length;
+    const nDup=dupData.filter(r=>r.removed_file&&r.removed_file!=='—').length;
+    stats=[[colData.length,'Column Mappings'],[tblData.length,'Table Pairs'],[nCirc>0?'⚠ '+nCirc:'✓ 0','Circular Deps'],[nDup,'Duplicates Removed']];
+  } else if(r0.intermediate_table!==undefined){
+    const matched=allR.filter(r=>r.report_job&&r.report_job!=='— no match found');
+    stats=[[allR.length,'E2E Flow Rows'],[new Set(allR.map(r=>r.source_table).filter(Boolean)).size,'Source Tables'],[new Set(allR.map(r=>r.intermediate_table).filter(Boolean)).size,'Intermediate Tables'],[matched.length,'Matched to Reports']];
+  } else if(r0.source_column!==undefined){
+    const lr=allData['Column Lineage']||allData[sheets[0]]||[];
+    stats=[[lr.length,'Column Mappings'],[r1.length||sheets.length,'Jobs'],[new Set(lr.map(r=>r.source_table).filter(Boolean)).size,'Source Tables'],[new Set(lr.map(r=>r.target_table).filter(Boolean)).size,'Target Tables']];
+  } else if(r0.complexity!==undefined){
+    stats=[[new Set(allR.map(r=>r.domain)).size,'Domains'],[allR.length,'Files'],[allR.filter(r=>r.has_udf==='yes').length,'With UDFs'],[allR.filter(r=>r.complexity==='manual').length,'Manual complexity']];
+  } else if(r0.domain!==undefined){
+    stats=[[new Set(allR.map(r=>r.domain)).size,'Domains'],[allR.length,'Files'],[new Set(allR.flatMap(r=>(r.source_tables||'').split(/[;\n]/).filter(Boolean))).size,'Source tables'],[allR.filter(r=>r.kpi_metrics).length,'With KPIs']];
+  } else {
+    stats=[[allR.length,'Records'],[sheets.length,'Sheets'],['—','—'],['—','—']];
+  }
+  document.getElementById('statsRow').innerHTML=stats.map(([v,l])=>`<div class="scard"><div class="sv">${v}</div><div class="sl">${l}</div></div>`).join('');
+  document.getElementById('sheetTabs').innerHTML=sheets.map(s=>`<button class="shtab${s===activeSheet?' on':''}" onclick="setSheet(this,'${s}')">${s} <span style="opacity:.5">${(allData[s]||[]).length}</span></button>`).join('');
+  renderHead(); renderBody();
+  document.getElementById('resContent').style.display='block';
+  document.getElementById('emptyDiv').style.display='none';
+  maybeShowGraph();
+}
+
+function setSheet(el,s){
+  // Manually switching sheet always clears drill mode
+  drillState=null;
+  const srch=document.getElementById('srchIn'); if(srch) srch.value='';
+  activeSheet=s;
+  document.querySelectorAll('.shtabs .shtab').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  renderHead(); renderBody();
+}
+
+function getCols(){
+  const r=(allData[activeSheet]||[])[0]||{};
+  if(activeSheet==='Table Lineage')           return COL_TBL;
+  if(activeSheet==='Circular Dependencies')   return COL_CIRC;
+  if(activeSheet==='Duplicates')              return COL_DUP;
+  if(r.intermediate_table!==undefined)        return COL_E2E;
+  if(r.source_column!==undefined)             return COL_NEW;
+  if(r.job_description!==undefined)           return COL_SUM;
+  if(r.complexity!==undefined)                return COL_ETL;
+  if(r.domain!==undefined)                    return COL_OLD;
+  return COL_NEW;
+}
+function renderHead(){
+  document.getElementById('tHead').innerHTML='<tr>'+getCols().map(c=>{
+    const idAttr = c.dynId ? ` id="${c.dynId}"` : '';
+    const label  = c.dynId && document.getElementById(c.dynId)
+                   ? document.getElementById(c.dynId).textContent
+                   : c.l;
+    return `<th style="width:${c.w}"${idAttr}>${label}</th>`;
+  }).join('')+'</tr>';
+}
+function renderBody(){
+  const rows=allData[activeSheet]||[];
+  let f;
+
+  // ── DRILL MODE: exact table-level filter on source_table / target_table ──
+  if(drillState && activeSheet==='Column Lineage'){
+    const tbl=drillState.toLowerCase();
+    f=rows.filter(r=> bareMatch(r.source_table,tbl) || bareMatch(r.target_table,tbl));
+    // Show breadcrumb + back button above the table
+    const breadcrumb=document.getElementById('drillBreadcrumb');
+    if(breadcrumb){
+      breadcrumb.style.display='flex';
+      const asSrc = f.filter(r=>bareMatch(r.source_table,tbl)).length;
+      const asTgt = f.filter(r=>bareMatch(r.target_table,tbl)).length;
+      breadcrumb.innerHTML=
+        `<button class="drill-btn" style="margin-left:0" onclick="drillUp()">` +
+        `<i class="ti ti-arrow-left"></i> ← Table Lineage</button>` +
+        `<span style="font-size:12px;color:var(--t2);margin-left:10px">` +
+        `Showing <strong>${f.length}</strong> column mappings for ` +
+        `<strong style="color:var(--acc)">${drillState}</strong> — ` +
+        `<span style="color:var(--t3)">${asSrc} as source · ${asTgt} as target</span></span>`;
+    }
+  } else {
+    // Normal mode: hide breadcrumb, apply free-text search
+    const breadcrumb=document.getElementById('drillBreadcrumb');
+    if(breadcrumb) breadcrumb.style.display='none';
+    const s=(document.getElementById('srchIn').value||'').toLowerCase();
+    f=s?rows.filter(r=>Object.values(r).join(' ').toLowerCase().includes(s)):rows;
+  }
+
+  const cols=getCols();
+  const isTableSheet = (activeSheet==='Table Lineage');
+  document.getElementById('tBody').innerHTML=f.map(r=>'<tr>'+cols.map(c=>{
+    const v=r[c.k]||'';
+    if(c.k==='sql_operation') return `<td><span class="bdg ${OP_C[v]||'b-gray'}">${v||'—'}</span></td>`;
+    if(c.k==='file_type') return `<td><span class="bdg ${TY_C[v]||'b-gray'}">${v||'—'}</span></td>`;
+    if(c.k==='complexity') return `<td><span class="bdg ${CX_C[v]||'b-gray'}">${v||'—'}</span></td>`;
+    if(c.k==='job_type') return `<td><span class="bdg b-gray">${v||'—'}</span></td>`;
+    if(c.k==='has_udf'||c.k==='has_delta_ops') return `<td>${v==='yes'?'<span style="color:#27500A;font-size:13px">✓</span>':'<span style="color:var(--t3)">—</span>'}</td>`;
+    if(c.k==='file_path'){ const u=v.startsWith('http'); return u?`<td title="${v}"><a href="${v}" target="_blank" style="color:var(--acc);text-decoration:none;font-family:var(--m);font-size:11px">${v.split('/').pop()}</a></td>`:`<td title="${v}" style="font-family:var(--m);font-size:11px">${v.split('/').pop()||v}</td>`; }
+    if(c.k==='job_description') return `<td title="${v}" style="white-space:normal;line-height:1.4;font-size:11px">${v||'—'}</td>`;
+    // ── TABLE LINEAGE SHEET: source_table and target_table are drill links ──
+    if(isTableSheet && (c.k==='source_table'||c.k==='target_table') && v && v!=='—'){
+      const safe=v.replace(/'/g,"\\'");
+      const circ=circularTables.has(v.toLowerCase());
+      return `<td><span class="tbl-link" onclick="drillDownToColumns('${safe}')" title="Click to see all column mappings for ${v}">${v}</span>${circ?' <span class="circ-badge">⟲</span>':''}</td>`;
+    }
+    // Highlight drilled table name in Column Lineage
+    if(drillState && (c.k==='source_table'||c.k==='target_table') && bareMatch(v, drillState))
+      return `<td><strong style="color:var(--acc)">${v}</strong></td>`;
+    if(!v) return `<td style="color:var(--t3)">—</td>`;
+    return `<td title="${v}">${v}</td>`;
+  }).join('')+'</tr>').join('')||`<tr><td colspan="${cols.length}" style="text-align:center;padding:1.5rem;color:var(--t3)">${drillState?'No column mappings found for table <strong>'+drillState+'</strong>':'No results match'}</td></tr>`;
+}
+function filterRows(){
+  // When user types in search box in normal mode, clear drill state
+  if(document.getElementById('srchIn')===document.activeElement) drillState=null;
+  renderBody();
+}
+
+// ── Downloads ─────────────────────────────────────────────────────────────
+function downloadExcel(){
+  if(!lastBlob){showAlert('warn','No results to download yet.');return;}
+  const filenames={lineage:'lineage_output.xlsx',etl:'etl_migration_output.xlsx',report:'reporting_lineage_output.xlsx',e2e:'e2e_lineage.xlsx',unified:'unified_lineage.xlsx'};
+  const a=document.createElement('a'); a.href=URL.createObjectURL(lastBlob); a.download=filenames[pipe]||'output.xlsx'; a.click();
+}
+function downloadCSV(){
+  if(!lastBlob){showAlert('warn','No results to download yet.');return;}
+  const cols=getCols(), rows=allData[activeSheet]||[];
+  const csv=[cols.map(c=>c.l).join(','),...rows.map(r=>cols.map(c=>`"${(r[c.k]||'').toString().replace(/"/g,'""')}"`).join(','))].join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`lineage_${activeSheet.replace(/\s+/g,'_')}.csv`; a.click();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GRAPH + DRILL-DOWN SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+let graphView = 'table';          // 'table' | 'flow'
+let graphFilterTable = null;      // active drill-down filter table name
+let circularTables = new Set();   // tables that are both src+target
+
+// Called after parseExcel — show graph if Table Lineage sheet exists
+function maybeShowGraph(){
+  const panel = document.getElementById('graphPanel');
+  // Show graph if we have Table Lineage (unified output) OR Column Lineage (regular output)
+  const hasTbl = !!allData['Table Lineage'];
+  const hasCol = !!allData['Column Lineage'];
+  if(!hasTbl && !hasCol){ panel.style.display='none'; return; }
+  panel.style.display='block';
+
+  // Build circular set from Circular Dependencies sheet (unified only)
+  circularTables = new Set(
+    (allData['Circular Dependencies']||[])
+      .filter(r=>r.table_name && r.table_name!=='—')
+      .map(r=>r.table_name.toLowerCase())
+  );
+
+  // If no Table Lineage sheet, synthesize one from Column Lineage
+  if(!hasTbl && hasCol){
+    const seen = new Map();
+    (allData['Column Lineage']||[]).forEach(r=>{
+      const key = (r.source_table||'')+'||'+(r.target_table||'');
+      if(!seen.has(key)){
+        seen.set(key,{
+          source_database: r.source_database||'',
+          source_table:    r.source_table||'',
+          target_database: r.target_database||'',
+          target_table:    r.target_table||'',
+          column_count:    0,
+          operations:      '',
+          job_names:       r.job_name||'',
+          file_types:      r.file_type||'',
+          _ops: new Set(),
+        });
+      }
+      const g = seen.get(key);
+      g.column_count++;
+      if(r.sql_operation) g._ops.add(r.sql_operation);
+    });
+    allData['Table Lineage'] = Array.from(seen.values()).map(g=>({
+      ...g, operations: Array.from(g._ops).join(', ')
+    }));
+    // Add a synthetic sheet tab
+    const tabs = document.getElementById('sheetTabs');
+    if(tabs && !tabs.innerHTML.includes('Table Lineage')){
+      tabs.innerHTML += `<button class="shtab" onclick="setSheet(this,'Table Lineage')">Table Lineage <span style="opacity:.5">${allData['Table Lineage'].length}</span></button>`;
+    }
+  }
+  renderGraph();
+}
+
+function setGraphView(v){
+  graphView = v;
+  document.getElementById('gv-table').classList.toggle('active', v==='table');
+  document.getElementById('gv-flow').classList.toggle('active',  v==='flow');
+  document.getElementById('graphSvg').style.display        = v==='flow'  ? 'block':'none';
+  document.getElementById('graphTableView').style.display  = v==='table' ? 'block':'none';
+  renderGraph();
+}
+
+function filterGraph(val){
+  graphFilterTable = val.trim().toLowerCase() || null;
+  const badge = document.getElementById('graphFilterBadge');
+  if(graphFilterTable){
+    badge.style.display='inline';
+    badge.textContent = `Filtered: "${graphFilterTable}"`;
+  } else {
+    badge.style.display='none';
+  }
+  renderGraph();
+}
+
+function resetGraphFilter(){
+  graphFilterTable = null;
+  document.getElementById('graphSearch').value = '';
+  document.getElementById('graphFilterBadge').style.display='none';
+  renderGraph();
+}
+
+// ── Shared bareMatch helper (used by both drill-down and renderBody) ─────────
+function bareMatch(name, tbl){
+  const n = (name||'').toLowerCase();
+  tbl = (tbl||'').toLowerCase();
+  return n===tbl || n.endsWith('.'+tbl) || tbl.endsWith('.'+n) ||
+         n.split('.').pop()===tbl.split('.').pop();
+}
+
+// ── Drill down — renders column lineage IN-PLACE inside the graph panel ─────
+// This is the primary UX: clicking a table name shows the result immediately
+// at the same scroll position, no need to scroll anywhere.
+function drillDownToColumns(tableName){
+  if(!tableName || tableName==='—') return;
+  const colRows = allData['Column Lineage'] || [];
+  if(!colRows.length){
+    showAlert('warn','Column Lineage data not found. Run unified-extract or lineage-extract first.');
+    return;
+  }
+
+  drillState = tableName;
+
+  // ── Primary: render column lineage IN the graph panel table area ──────────
+  renderGraph();   // renderGraphTable() will detect drillState and show column detail
+
+  // ── Secondary: also update the sheet tabs + main results table below ──────
+  activeSheet = 'Column Lineage';
+  const srch = document.getElementById('srchIn');
+  if(srch) srch.value = '';
+  document.querySelectorAll('.shtabs .shtab').forEach(b=>{
+    b.classList.toggle('on', b.textContent.trim().startsWith('Column Lineage'));
+  });
+  renderHead(); renderBody();
+
+  // Scroll so the graph panel header is visible (it shows the drill state)
+  const gp = document.getElementById('graphPanel');
+  if(gp) gp.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+// ── Drill up — go back to table-level view ───────────────────────────────────
+function drillUp(){
+  drillState = null;
+  // Restore graph panel to Table Lineage view
+  renderGraph();
+  // Restore main results table to Table Lineage sheet
+  if(allData['Table Lineage']){
+    activeSheet = 'Table Lineage';
+    document.querySelectorAll('.shtabs .shtab').forEach(b=>{
+      b.classList.toggle('on', b.textContent.trim().startsWith('Table Lineage'));
+    });
+  } else {
+    activeSheet = Object.keys(allData)[0] || '';
+  }
+  const srch = document.getElementById('srchIn');
+  if(srch) srch.value = '';
+  renderHead(); renderBody();
+}
+
+function getGraphRows(){
+  const rows = allData['Table Lineage']||[];
+  if(!graphFilterTable) return rows;
+  return rows.filter(r=>
+    (r.source_table||'').toLowerCase().includes(graphFilterTable) ||
+    (r.target_table||'').toLowerCase().includes(graphFilterTable)
+  );
+}
+
+function renderGraph(){
+  if(graphView==='table') renderGraphTable();
+  else                    renderGraphFlow();
+}
+
+// ── Table view — shows Table Lineage OR (when drillState is set) the
+//    filtered Column Lineage for the clicked table, IN PLACE ─────────────────
+function renderGraphTable(){
+  const el = document.getElementById('graphTableView');
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DRILL MODE: show column lineage for the selected table right here
+  // ═══════════════════════════════════════════════════════════════════════════
+  if(drillState){
+    const colRows = allData['Column Lineage'] || [];
+    const f = colRows.filter(r => bareMatch(r.source_table, drillState) || bareMatch(r.target_table, drillState));
+    const asSrc = f.filter(r => bareMatch(r.source_table, drillState)).length;
+    const asTgt = f.filter(r => bareMatch(r.target_table, drillState)).length;
+
+    const OP_C={SELECT:'b-blue',AGGREGATE:'b-teal',JOIN:'b-join',FILTER:'b-amber',WINDOW:'b-win',ALIAS:'b-purple',UNKNOWN:'b-gray'};
+    const TY_C={SQL:'b-blue',PySpark:'b-purple'};
+
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:9px 12px;
+                  background:var(--acc2);border-radius:var(--r);border:.5px solid rgba(24,95,165,.25);flex-wrap:wrap">
+        <button class="drill-btn" style="margin-left:0;background:var(--bg);border-color:var(--b2)" onclick="drillUp()">
+          <i class="ti ti-arrow-left"></i> Back to Table Lineage
+        </button>
+        <span style="font-size:13px;font-weight:600;color:var(--acc)">
+          <i class="ti ti-table" style="font-size:12px"></i> ${drillState}
+        </span>
+        <span style="font-size:11px;color:var(--t2)">
+          ${f.length} column mapping${f.length!==1?'s':''} &nbsp;·&nbsp;
+          <span style="color:#27500A">${asSrc} as source</span> &nbsp;·&nbsp;
+          <span style="color:#0C447C">${asTgt} as target</span>
+        </span>
+      </div>
+      ${f.length===0
+        ? `<div style="padding:1.5rem;text-align:center;color:var(--t3);font-size:12px">
+             No column mappings found for <strong>${drillState}</strong>.<br>
+             This table may only appear in intermediate CTEs and not in the final output columns.
+           </div>`
+        : `<div style="overflow-x:auto">
+           <table class="rt" style="font-size:12px">
+             <thead><tr>
+               <th style="width:8%">Type</th>
+               <th style="width:13%">Source Table</th>
+               <th style="width:13%">Source Column</th>
+               <th style="width:13%">Target Table</th>
+               <th style="width:13%">Target Column</th>
+               <th style="width:10%">Operation</th>
+               <th style="width:13%">Job</th>
+               <th style="width:17%">File</th>
+             </tr></thead>
+             <tbody>${f.map(r=>{
+               const op=r.sql_operation||'';
+               const ft=r.file_type||'';
+               const srcHi=bareMatch(r.source_table,drillState);
+               const tgtHi=bareMatch(r.target_table,drillState);
+               return `<tr>
+                 <td><span class="bdg ${TY_C[ft]||'b-gray'}">${ft||'—'}</span></td>
+                 <td style="${srcHi?'font-weight:700;color:var(--acc)':''}">${r.source_table||'<span style="color:var(--t3)">—</span>'}</td>
+                 <td><strong>${r.source_column||'—'}</strong></td>
+                 <td style="${tgtHi?'font-weight:700;color:var(--acc)':''}">${r.target_table||'<span style="color:var(--t3)">—</span>'}</td>
+                 <td>${r.target_column||'—'}</td>
+                 <td><span class="bdg ${OP_C[op]||'b-gray'}">${op||'—'}</span></td>
+                 <td style="font-size:11px;color:var(--t2)">${r.job_name||'—'}</td>
+                 <td style="font-size:10px;color:var(--t3);font-family:var(--m)">${(r.file_path||'').split('/').pop()||r.file_path||'—'}</td>
+               </tr>`;
+             }).join('')}</tbody>
+           </table></div>`
+      }`;
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NORMAL MODE: show Table Lineage with clickable table names
+  // ═══════════════════════════════════════════════════════════════════════════
+  const rows = getGraphRows();
+  if(!rows.length){
+    el.innerHTML='<div style="padding:1rem;color:var(--t3);font-size:12px">No table-level lineage data.</div>';
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="overflow-x:auto">
+    <table class="rt" style="font-size:12px">
+      <thead><tr>
+        <th style="width:10%">Src DB</th>
+        <th style="width:22%">Source Table <span style="font-weight:400;color:var(--acc);font-size:10px">(click)</span></th>
+        <th style="width:10%">Tgt DB</th>
+        <th style="width:22%">Target Table <span style="font-weight:400;color:var(--acc);font-size:10px">(click)</span></th>
+        <th style="width:7%">Cols</th>
+        <th style="width:29%">Operations</th>
+      </tr></thead>
+      <tbody>${rows.map(r=>{
+        const srcName = r.source_table||'';
+        const tgtName = r.target_table||'';
+        const srcCirc = circularTables.has(srcName.toLowerCase());
+        const tgtCirc = circularTables.has(tgtName.toLowerCase());
+        const mkLink = (name) => name
+          ? `<span class="tbl-link" onclick="drillDownToColumns('${name.replace(/'/g,"\'")}')"
+               title="Click to see all column mappings for ${name}">${name}</span>${
+               circularTables.has(name.toLowerCase())?' <span class="circ-badge">⟲</span>':''}`
+          : '<span style="color:var(--t3)">—</span>';
+        return `<tr>
+          <td style="color:var(--t3);font-size:11px">${r.source_database||'—'}</td>
+          <td><strong>${mkLink(srcName)}</strong></td>
+          <td style="color:var(--t3);font-size:11px">${r.target_database||'—'}</td>
+          <td><strong>${mkLink(tgtName)}</strong></td>
+          <td style="text-align:center;color:var(--t3)">${r.column_count||'—'}</td>
+          <td><span style="font-size:11px;color:var(--t2)">${r.operations||'—'}</span></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+}
+
+// ── Flow graph: D3 force-directed ────────────────────────────────────────────
+function renderGraphFlow(){
+  const svg = document.getElementById('graphSvg');
+  svg.innerHTML = '';
+
+  // ── Decide data source ───────────────────────────────────────────────────
+  // If E2E Lineage sheet exists and has rows → render layered source→pipeline→table→report
+  // Otherwise fall back to simple source→target graph from Table Lineage
+  const e2eRows  = (allData['E2E Lineage'] || []).filter(r => r.source_table || r.intermediate_table);
+  const tblRows  = getGraphRows();
+
+  if(!tblRows.length && !e2eRows.length){
+    svg.innerHTML='<text x="20" y="40" fill="var(--t3)" font-size="13">No data to visualise.</text>';
+    return;
+  }
+
+  const W = svg.parentElement.clientWidth - 32 || 900;
+
+  if(e2eRows.length){
+    // ════════════════════════════════════════════════════════════════════════
+    // LAYERED DAG: source → etl_pipeline → intermediate_table → report
+    // ════════════════════════════════════════════════════════════════════════
+    const LAYERS = ['Source', 'ETL Pipeline', 'Intermediate Table', 'Report'];
+    const COL_COLORS = {
+      'Source':             '#1565C0',
+      'ETL Pipeline':       '#2E7D32',
+      'Intermediate Table': '#E65100',
+      'Report':             '#6A1B9A',
+    };
+
+    // Build node sets per layer
+    const srcNodes  = new Map();
+    const etlNodes  = new Map();
+    const tblNodes  = new Map();
+    const rptNodes  = new Map();
+
+    e2eRows.forEach(r => {
+      if(r.source_table)      srcNodes.set(r.source_table, {id:r.source_table, layer:'Source'});
+      if(r.etl_job)           etlNodes.set(r.etl_job,      {id:r.etl_job,      layer:'ETL Pipeline', file_type: r.etl_file_type||''});
+      if(r.intermediate_table)tblNodes.set(r.intermediate_table, {id:r.intermediate_table, layer:'Intermediate Table'});
+      if(r.report_job)        rptNodes.set(r.report_job,   {id:r.report_job,   layer:'Report', file_type: r.report_file_type||''});
+    });
+
+    const allNodes = [
+      ...Array.from(srcNodes.values()),
+      ...Array.from(etlNodes.values()),
+      ...Array.from(tblNodes.values()),
+      ...Array.from(rptNodes.values()),
+    ];
+
+    // Build links: src→etl, etl→tbl, tbl→rpt
+    const linkSet = new Set();
+    const links = [];
+    const addLink = (s, t) => {
+      const k = s+'__'+t;
+      if(!linkSet.has(k)){ linkSet.add(k); links.push({source:s, target:t}); }
+    };
+    e2eRows.forEach(r => {
+      if(r.source_table && r.etl_job)           addLink(r.source_table, r.etl_job);
+      if(r.etl_job && r.intermediate_table)     addLink(r.etl_job, r.intermediate_table);
+      if(r.intermediate_table && r.report_job)  addLink(r.intermediate_table, r.report_job);
+    });
+
+    // Fixed-column layout
+    const layerCols = [srcNodes, etlNodes, tblNodes, rptNodes];
+    const xGap = W / (LAYERS.length + 1);
+    const nodeById = {};
+    allNodes.forEach(n => { nodeById[n.id] = n; });
+
+    layerCols.forEach((col, li) => {
+      const arr = Array.from(col.values());
+      const rowH = Math.max(50, Math.min(80, 600 / Math.max(arr.length, 1)));
+      const totalH = arr.length * rowH;
+      const startY = 50;
+      arr.forEach((n, i) => {
+        n.x = xGap * (li + 1);
+        n.y = startY + i * rowH + rowH / 2;
+      });
+    });
+
+    const H = Math.max(300, Math.max(...allNodes.map(n => n.y)) + 60);
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('height', H);
+
+    const d3svg = d3.select(svg);
+    const g = d3svg.append('g');
+    d3svg.call(d3.zoom().scaleExtent([0.2,3]).on('zoom', e => g.attr('transform', e.transform)));
+
+    // Layer header labels
+    LAYERS.forEach((lbl, li) => {
+      g.append('text')
+        .attr('x', xGap * (li + 1))
+        .attr('y', 20)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 11)
+        .attr('font-weight', 600)
+        .attr('fill', COL_COLORS[lbl])
+        .text(lbl);
+    });
+
+    // Arrow marker per layer color
+    const defs = d3svg.append('defs');
+    Object.entries(COL_COLORS).forEach(([lbl, col]) => {
+      defs.append('marker')
+        .attr('id', 'arr-'+lbl.replace(/\s/g,''))
+        .attr('viewBox','0 -5 10 10').attr('refX',18).attr('refY',0)
+        .attr('markerWidth',5).attr('markerHeight',5).attr('orient','auto')
+        .append('path').attr('d','M0,-5L10,0L0,5').attr('fill', col);
+    });
+
+    // Draw links
+    links.forEach(lk => {
+      const s = nodeById[lk.source], t = nodeById[lk.target];
+      if(!s || !t) return;
+      const col = COL_COLORS[s.layer] || 'var(--acc)';
+      const markId = 'arr-'+s.layer.replace(/\s/g,'');
+      // Curved path
+      const mx = (s.x + t.x) / 2;
+      g.append('path')
+        .attr('d', `M${s.x+62},${s.y} C${mx},${s.y} ${mx},${t.y} ${t.x-62},${t.y}`)
+        .attr('fill','none')
+        .attr('stroke', col)
+        .attr('stroke-opacity', 0.55)
+        .attr('stroke-width', 1.5)
+        .attr('marker-end', `url(#${markId})`);
+    });
+
+    // Draw nodes
+    allNodes.forEach(n => {
+      const col = COL_COLORS[n.layer] || '#888';
+      const ng = g.append('g')
+        .attr('transform', `translate(${n.x},${n.y})`)
+        .attr('cursor','pointer')
+        .on('click', () => drillDownToColumns(n.id));
+
+      ng.append('rect')
+        .attr('x',-62).attr('y',-14).attr('width',124).attr('height',28)
+        .attr('rx',6).attr('ry',6)
+        .attr('fill', col+'22')
+        .attr('stroke', col)
+        .attr('stroke-width',1.5);
+
+      ng.append('text')
+        .attr('text-anchor','middle')
+        .attr('dominant-baseline','middle')
+        .attr('font-size', 10)
+        .attr('fill', 'var(--t1)')
+        .attr('font-weight', 500)
+        .text(n.id.length > 18 ? n.id.slice(0,16)+'…' : n.id)
+        .append('title').text(n.id);
+
+      if(n.file_type){
+        ng.append('text')
+          .attr('text-anchor','middle')
+          .attr('y', 22)
+          .attr('font-size', 8)
+          .attr('fill', col)
+          .text(n.file_type);
+      }
+    });
+
+  } else {
+    // ════════════════════════════════════════════════════════════════════════
+    // SIMPLE GRAPH: source_table → target_table (no ETL layer, no reports)
+    // ════════════════════════════════════════════════════════════════════════
+    if(!tblRows.length || typeof d3==='undefined'){
+      svg.innerHTML='<text x="20" y="40" fill="var(--t3)" font-size="13">No data or D3 not loaded.</text>';
+      return;
+    }
+
+    const H = Math.max(300, Math.min(550, tblRows.length * 28 + 80));
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('height', H);
+
+    const nodeSet = new Map();
+    const links = [];
+    tblRows.forEach(r=>{
+      const s = r.source_table||'', t = r.target_table||'';
+      if(s && !nodeSet.has(s)) nodeSet.set(s,{id:s, type:'source'});
+      if(t && !nodeSet.has(t)) nodeSet.set(t,{id:t, type:'target'});
+      if(t && nodeSet.has(t)) nodeSet.get(t).type='target';
+      if(s && nodeSet.has(s) && circularTables.has(s.toLowerCase())) nodeSet.get(s).circular=true;
+      if(t && nodeSet.has(t) && circularTables.has(t.toLowerCase())) nodeSet.get(t).circular=true;
+      if(s && t) links.push({source:s, target:t, cols:r.column_count||0});
+    });
+    const nodes = Array.from(nodeSet.values());
+
+    const d3svg = d3.select(svg);
+    const g = d3svg.append('g');
+    d3svg.call(d3.zoom().scaleExtent([0.3,3]).on('zoom', e=>g.attr('transform',e.transform)));
+
+    d3svg.append('defs').append('marker')
+      .attr('id','arrow').attr('viewBox','0 -5 10 10').attr('refX',18).attr('refY',0)
+      .attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto')
+      .append('path').attr('d','M0,-5L10,0L0,5').attr('fill','var(--acc)');
+
+    const sim = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id(d=>d.id).distance(140))
+      .force('charge', d3.forceManyBody().strength(-300))
+      .force('center', d3.forceCenter(W/2, H/2))
+      .force('collision', d3.forceCollide(40));
+
+    const link = g.selectAll('line').data(links).join('line')
+      .attr('stroke','var(--acc)').attr('stroke-opacity',0.5)
+      .attr('stroke-width',1.5).attr('marker-end','url(#arrow)');
+
+    const linkLabel = g.selectAll('.llink').data(links).join('text')
+      .attr('class','llink').attr('font-size',9).attr('fill','var(--t3)')
+      .attr('text-anchor','middle').text(d=>`${d.cols} cols`);
+
+    const node = g.selectAll('.node').data(nodes).join('g')
+      .attr('class','node').attr('cursor','pointer')
+      .call(d3.drag()
+        .on('start',(e,d)=>{ if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+        .on('drag', (e,d)=>{ d.fx=e.x; d.fy=e.y; })
+        .on('end',  (e,d)=>{ if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
+      )
+      .on('click', (e,d)=>{ drillDownToColumns(d.id); });
+
+    node.append('rect')
+      .attr('rx',6).attr('ry',6)
+      .attr('x',-60).attr('y',-14).attr('width',120).attr('height',28)
+      .attr('fill', d=>d.circular?'#FCEBEB': d.type==='source'?'var(--acc2)':'#EAF3DE')
+      .attr('stroke', d=>d.circular?'#C62828': d.type==='source'?'var(--acc)':'#4CAF50')
+      .attr('stroke-width',1.5);
+
+    node.append('text')
+      .attr('text-anchor','middle').attr('dominant-baseline','middle')
+      .attr('font-size',10).attr('fill','var(--t1)').attr('font-weight',500)
+      .text(d=>d.id.length>18?d.id.slice(0,16)+'…':d.id);
+
+    sim.on('tick',()=>{
+      link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+          .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+      linkLabel.attr('x',d=>(d.source.x+d.target.x)/2).attr('y',d=>(d.source.y+d.target.y)/2-6);
+      node.attr('transform',d=>`translate(${d.x},${d.y})`);
+    });
+  }
+}
+
+
+</script>
+</body>
+</html>

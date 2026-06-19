@@ -1,0 +1,192 @@
+// DOMAIN: supply_chain
+// SUBJECT_AREA: inventory_analytics
+// SCHEDULE: 0 5 * * *
+// OWNER: scm-analytics@corp.com
+
+// =============================================================================
+// STRESS TEST: Maximum QVS complexity
+// Tests:
+//   - Multiple SQL SELECT ... FROM ... statements (table extraction)
+//   - LOAD ... FROM ... (QVS-native load syntax)
+//   - LOAD RESIDENT (in-memory load — no real table, must NOT produce a source)
+//   - JOIN LOAD (QVS join syntax)
+//   - CONCATENATE LOAD (must detect tables in the SELECT underneath)
+//   - Inline table (INLINE [...] — must NOT produce a fake source table)
+//   - Multiple targets (INTO / store to QVD — if parser tracks these)
+//   - Comment with a table name inside — must NOT be extracted
+//   - Variable names that look like SQL keywords
+// =============================================================================
+
+// -- Variable declarations (must NOT produce metadata hits) -------------------
+SET ThrowErrorOnSyntaxError = 1;
+SET NullInterpret = '';
+LET vLoadDate = Today();
+LET vLookbackDays = 90;
+
+// =============================================================================
+// BLOCK 1: Direct SQL SELECTs from source databases
+// =============================================================================
+
+Inventory_Facts:
+SQL SELECT
+    f.item_id,
+    f.warehouse_id,
+    f.snapshot_date,
+    f.qty_on_hand,
+    f.qty_reserved,
+    f.qty_available,
+    f.unit_cost,
+    f.reorder_point,
+    f.reorder_qty
+FROM scm.fact_inventory_snapshot f
+WHERE f.snapshot_date >= AddMonths(Today(), -3);
+
+Item_Master:
+SQL SELECT
+    i.item_id,
+    i.item_code,
+    i.item_description,
+    i.category,
+    i.sub_category,
+    i.unit_of_measure,
+    i.lead_time_days,
+    i.min_order_qty,
+    i.abc_classification
+FROM scm.dim_item_master i
+WHERE i.is_active = 1;
+
+Warehouse_Dim:
+SQL SELECT
+    w.warehouse_id,
+    w.warehouse_name,
+    w.warehouse_type,
+    w.region,
+    w.country,
+    w.capacity_sqft
+FROM scm.dim_warehouses w;
+
+Supplier_Master:
+SQL SELECT
+    s.supplier_id,
+    s.supplier_name,
+    s.country_of_origin,
+    s.lead_time_days,
+    s.on_time_delivery_rate,
+    s.quality_score
+FROM scm.dim_suppliers s
+JOIN scm.supplier_performance_scores sp ON s.supplier_id = sp.supplier_id;
+
+// =============================================================================
+// BLOCK 2: LOAD ... FROM ... QVS native syntax (QVD or flat file)
+// =============================================================================
+
+Historical_Movements:
+LOAD
+    movement_id,
+    item_id,
+    warehouse_id,
+    movement_date,
+    movement_type,
+    quantity,
+    unit_cost
+FROM [lib://DataFiles/inventory_movements.qvd] (qvd);
+
+// =============================================================================
+// BLOCK 3: JOIN LOAD — adds columns to an existing table in memory
+// Tests that the underlying SQL source is still extracted
+// =============================================================================
+
+JOIN (Inventory_Facts)
+SQL SELECT
+    po.item_id,
+    po.warehouse_id,
+    SUM(po.qty_ordered) AS qty_on_order,
+    MIN(po.expected_delivery) AS next_delivery_date
+FROM scm.fact_purchase_orders po
+WHERE po.status IN ('OPEN', 'PARTIAL')
+GROUP BY po.item_id, po.warehouse_id;
+
+// =============================================================================
+// BLOCK 4: CONCATENATE LOAD — appends rows from another source
+// =============================================================================
+
+CONCATENATE (Inventory_Facts)
+SQL SELECT
+    t.item_id,
+    t.warehouse_id,
+    t.transfer_date AS snapshot_date,
+    t.qty_transferred AS qty_on_hand,
+    0 AS qty_reserved,
+    t.qty_transferred AS qty_available,
+    t.unit_cost,
+    0 AS reorder_point,
+    0 AS reorder_qty
+FROM scm.fact_warehouse_transfers t
+WHERE t.transfer_date >= AddMonths(Today(), -1);
+
+// =============================================================================
+// BLOCK 5: LOAD RESIDENT — in-memory transformation, no DB source
+// "Inventory_Facts" here is a QVS table name, NOT a database table.
+// Must NOT appear as a source_table in the output.
+// =============================================================================
+
+Inventory_Enriched:
+LOAD
+    item_id,
+    warehouse_id,
+    snapshot_date,
+    qty_on_hand,
+    qty_available,
+    unit_cost,
+    (qty_on_hand * unit_cost) AS inventory_value,
+    If(qty_available <= reorder_point, 1, 0) AS needs_reorder
+RESIDENT Inventory_Facts;
+
+// =============================================================================
+// BLOCK 6: INLINE table — hardcoded mapping data
+// No real DB table involved. Must NOT produce a source_table row.
+// =============================================================================
+
+ABC_Thresholds:
+LOAD * INLINE [
+    abc_class, min_value_pct, max_value_pct, review_frequency
+    A, 0.70, 1.00, Weekly
+    B, 0.20, 0.70, Monthly
+    C, 0.00, 0.20, Quarterly
+];
+
+// =============================================================================
+// BLOCK 7: Complex SQL with subquery and GROUP BY
+// Tests aggregate and join detection
+// =============================================================================
+
+Reorder_Candidates:
+SQL SELECT
+    ie.item_id,
+    ie.warehouse_id,
+    ie.qty_available,
+    ie.reorder_point,
+    ie.reorder_qty,
+    ie.unit_cost,
+    s.supplier_name,
+    s.lead_time_days AS supplier_lead_time,
+    (ie.qty_available * ie.unit_cost) AS current_value,
+    ROW_NUMBER() OVER (PARTITION BY ie.warehouse_id ORDER BY ie.unit_cost DESC) AS cost_rank
+FROM scm.fact_inventory_snapshot ie
+JOIN scm.dim_suppliers s ON ie.primary_supplier_id = s.supplier_id
+WHERE ie.qty_available <= ie.reorder_point
+  AND ie.snapshot_date = (SELECT MAX(snapshot_date) FROM scm.fact_inventory_snapshot);
+
+// =============================================================================
+// BLOCK 8: STORE to QVD (output / target)
+// =============================================================================
+
+STORE Inventory_Enriched INTO [lib://QVD/inventory_enriched.qvd] (qvd);
+STORE Reorder_Candidates INTO [lib://QVD/reorder_candidates.qvd] (qvd);
+
+// -- Comment trap: the next line has a table name inside a comment.
+// -- The parser must NOT extract "scm.comment_trap_table" as a source.
+// -- FROM scm.comment_trap_table WHERE id = 1
+
+DROP TABLE Inventory_Facts;
+DROP TABLE Item_Master;

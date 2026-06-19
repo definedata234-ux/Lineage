@@ -1,0 +1,71 @@
+// DOMAIN: supply_chain
+// SUBJECT_AREA: inventory
+// OWNER: bi-team
+
+// Qlik Sense Load Script — Inventory Report
+// Tests: LOAD, SELECT, JOIN, resident load extraction
+
+// ── Connection: DW_Production
+LIB CONNECT TO 'DW_Production';
+
+// Load product inventory summary
+ProductInventory:
+LOAD
+    product_id,
+    product_name,
+    product_category,
+    warehouse_id,
+    warehouse_name,
+    region,
+    total_stock,
+    total_value,
+    avg_days_on_hand,
+    latest_receipt;
+SQL
+SELECT
+    product_id,
+    product_name,
+    product_category,
+    warehouse_id,
+    warehouse_name,
+    region,
+    total_stock,
+    total_value,
+    avg_days_on_hand,
+    latest_receipt
+FROM gold.product_inventory_summary
+WHERE total_stock > 0
+ORDER BY product_category, warehouse_name;
+
+// Load low stock alerts
+LowStockAlerts:
+LOAD
+    product_id,
+    product_name,
+    warehouse_name,
+    region,
+    total_stock;
+SQL
+SELECT
+    a.product_id,
+    a.product_name,
+    a.warehouse_name,
+    a.region,
+    a.total_stock
+FROM gold.low_stock_alerts a
+JOIN gold.product_inventory_summary s
+    ON a.product_id = s.product_id
+WHERE a.total_stock < 100;
+
+// Derive reorder flag using Resident Load
+ReorderRequired:
+LOAD
+    product_id,
+    product_name,
+    region,
+    total_stock,
+    IF(total_stock < 50, 'URGENT', 'REORDER') AS reorder_priority
+RESIDENT LowStockAlerts
+WHERE total_stock < 100;
+
+DROP TABLE LowStockAlerts;

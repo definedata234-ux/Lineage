@@ -1,0 +1,147 @@
+{
+  "version": "2.0.0",
+  "metadata": {
+    "DOMAIN": "finance",
+    "SUBJECT_AREA": "executive_reporting",
+    "SCHEDULE": "0 7 * * 1",
+    "OWNER": "bi-platform-team"
+  },
+  "dataSources": [
+    {
+      "name": "DW_Production",
+      "type": "sql",
+      "connectionString": "Server=dw-prod.corp.com;Database=DataWarehouse",
+      "queries": [
+        {
+          "name": "fact_revenue",
+          "query": "SELECT r.revenue_id, r.period_id, r.product_id, r.customer_id, r.region_id, r.channel_id, r.gross_revenue, r.discounts, r.net_revenue, r.cogs, r.gross_margin FROM finance.fact_revenue r WHERE r.is_deleted = 0"
+        },
+        {
+          "name": "dim_period",
+          "query": "SELECT p.period_id, p.fiscal_year, p.fiscal_quarter, p.fiscal_month, p.calendar_date, p.is_current_period FROM finance.dim_period p"
+        },
+        {
+          "name": "dim_product",
+          "query": "SELECT p.product_id, p.product_name, p.product_line, p.business_unit, p.cost_centre, p.gl_account FROM finance.dim_product p WHERE p.is_active = 1"
+        },
+        {
+          "name": "dim_customer",
+          "query": "SELECT c.customer_id, c.customer_name, c.industry_vertical, c.contract_tier, c.account_manager FROM finance.dim_customer c"
+        },
+        {
+          "name": "dim_region",
+          "query": "SELECT r.region_id, r.region_name, r.sub_region, r.country, r.market_cluster FROM finance.dim_region r"
+        },
+        {
+          "name": "dim_channel",
+          "query": "SELECT ch.channel_id, ch.channel_name, ch.channel_type, ch.partner_name FROM finance.dim_channel ch"
+        },
+        {
+          "name": "budget_actuals",
+          "query": "SELECT b.period_id, b.product_id, b.region_id, b.budget_revenue, b.forecast_revenue, b.actuals_revenue, b.variance, b.variance_pct FROM finance.fact_budget_actuals b JOIN finance.dim_period p ON b.period_id = p.period_id WHERE p.fiscal_year >= 2024"
+        },
+        {
+          "name": "executive_kpis",
+          "query": "SELECT k.kpi_id, k.kpi_name, k.kpi_value, k.kpi_target, k.period_id, k.business_unit, k.owner FROM finance.fact_executive_kpis k WHERE k.is_active = 1"
+        }
+      ]
+    },
+    {
+      "name": "HR_System",
+      "type": "sql",
+      "connectionString": "Server=hr-sql.corp.com;Database=HRSystem",
+      "queries": [
+        {
+          "name": "headcount",
+          "query": "SELECT h.emp_id, h.department, h.cost_centre, h.hire_date, h.salary_band, h.region FROM hr.v_headcount_current h WHERE h.employment_status = 'ACTIVE'"
+        }
+      ]
+    },
+    {
+      "name": "Manual_Adjustments",
+      "type": "excel",
+      "path": "/shared/finance/manual_adjustments.xlsx",
+      "queries": [
+        {
+          "name": "manual_adj",
+          "query": "Source=Excel.Workbook(File.Contents(\"/shared/finance/manual_adjustments.xlsx\")), adj_data=Source{[Item=\"Adjustments\"]}[Data], typed=Table.TransformColumnTypes(adj_data, {{\"period\", type text}, {\"amount\", type number}, {\"reason\", type text}}), filtered=Table.SelectRows(typed, each [amount] <> 0) in filtered"
+        }
+      ]
+    }
+  ],
+  "transformations": [
+    {
+      "name": "Revenue_With_Dims",
+      "type": "power_query",
+      "mExpression": "let Source = DW_Production, revenue = Source{[Schema=\"finance\",Item=\"fact_revenue\"]}[Data], period = Source{[Schema=\"finance\",Item=\"dim_period\"]}[Data], product = Source{[Schema=\"finance\",Item=\"dim_product\"]}[Data], customer = Source{[Schema=\"finance\",Item=\"dim_customer\"]}[Data], region = Source{[Schema=\"finance\",Item=\"dim_region\"]}[Data], channel = Source{[Schema=\"finance\",Item=\"dim_channel\"]}[Data], j1 = Table.NestedJoin(revenue, {\"period_id\"}, period, {\"period_id\"}, \"period_cols\", JoinKind.LeftOuter), j2 = Table.NestedJoin(j1, {\"product_id\"}, product, {\"product_id\"}, \"product_cols\", JoinKind.LeftOuter), j3 = Table.NestedJoin(j2, {\"customer_id\"}, customer, {\"customer_id\"}, \"customer_cols\", JoinKind.LeftOuter), j4 = Table.NestedJoin(j3, {\"region_id\"}, region, {\"region_id\"}, \"region_cols\", JoinKind.LeftOuter), j5 = Table.NestedJoin(j4, {\"channel_id\"}, channel, {\"channel_id\"}, \"channel_cols\", JoinKind.LeftOuter), expanded = Table.ExpandTableColumn(j5, \"period_cols\", {\"fiscal_year\", \"fiscal_quarter\", \"fiscal_month\"}, {\"fiscal_year\", \"fiscal_quarter\", \"fiscal_month\"}), calc = Table.AddColumn(expanded, \"gross_margin_pct\", each if [gross_revenue] = 0 then null else [gross_margin] / [gross_revenue]) in calc"
+    },
+    {
+      "name": "Budget_vs_Actuals",
+      "type": "power_query",
+      "mExpression": "let Source = DW_Production, budget = Source{[Schema=\"finance\",Item=\"fact_budget_actuals\"]}[Data], filtered = Table.SelectRows(budget, each [variance_pct] <> null), sorted = Table.Sort(filtered, {{\"variance_pct\", Order.Descending}}), top_variances = Table.FirstN(sorted, 100) in top_variances"
+    }
+  ],
+  "dataModel": {
+    "tables": [
+      {
+        "name": "FactRevenue",
+        "columns": [
+          {"name": "revenue_id", "dataType": "int64"},
+          {"name": "gross_revenue", "dataType": "decimal"},
+          {"name": "net_revenue", "dataType": "decimal"},
+          {"name": "gross_margin", "dataType": "decimal"},
+          {"name": "gross_margin_pct", "dataType": "decimal"},
+          {"name": "fiscal_year", "dataType": "string"},
+          {"name": "fiscal_quarter", "dataType": "string"},
+          {"name": "product_line", "dataType": "string"},
+          {"name": "business_unit", "dataType": "string"},
+          {"name": "industry_vertical", "dataType": "string"},
+          {"name": "region_name", "dataType": "string"},
+          {"name": "channel_type", "dataType": "string"}
+        ]
+      },
+      {
+        "name": "FactBudgetActuals",
+        "columns": [
+          {"name": "period_id", "dataType": "int64"},
+          {"name": "budget_revenue", "dataType": "decimal"},
+          {"name": "actuals_revenue", "dataType": "decimal"},
+          {"name": "variance", "dataType": "decimal"},
+          {"name": "variance_pct", "dataType": "decimal"}
+        ]
+      },
+      {
+        "name": "FactExecutiveKPIs",
+        "columns": [
+          {"name": "kpi_name", "dataType": "string"},
+          {"name": "kpi_value", "dataType": "decimal"},
+          {"name": "kpi_target", "dataType": "decimal"},
+          {"name": "business_unit", "dataType": "string"}
+        ]
+      },
+      {
+        "name": "DimHeadcount",
+        "columns": [
+          {"name": "emp_id", "dataType": "int64"},
+          {"name": "department", "dataType": "string"},
+          {"name": "cost_centre", "dataType": "string"},
+          {"name": "salary_band", "dataType": "string"}
+        ]
+      }
+    ],
+    "relationships": [
+      {"from": "FactRevenue",      "to": "FactBudgetActuals",  "fromColumn": "period_id",  "toColumn": "period_id"},
+      {"from": "FactRevenue",      "to": "FactExecutiveKPIs",  "fromColumn": "business_unit", "toColumn": "business_unit"},
+      {"from": "FactExecutiveKPIs","to": "DimHeadcount",       "fromColumn": "business_unit", "toColumn": "department"}
+    ]
+  },
+  "measures": [
+    {"table": "FactRevenue",       "name": "Total Gross Revenue",   "expression": "SUM(FactRevenue[gross_revenue])"},
+    {"table": "FactRevenue",       "name": "Total Net Revenue",     "expression": "SUM(FactRevenue[net_revenue])"},
+    {"table": "FactRevenue",       "name": "Gross Margin %",        "expression": "DIVIDE(SUM(FactRevenue[gross_margin]), SUM(FactRevenue[gross_revenue]), 0)"},
+    {"table": "FactRevenue",       "name": "YoY Revenue Growth",    "expression": "DIVIDE([Total Net Revenue] - CALCULATE([Total Net Revenue], SAMEPERIODLASTYEAR(DimPeriod[calendar_date])), CALCULATE([Total Net Revenue], SAMEPERIODLASTYEAR(DimPeriod[calendar_date])), 0)"},
+    {"table": "FactBudgetActuals", "name": "Budget Achievement %",  "expression": "DIVIDE(SUM(FactBudgetActuals[actuals_revenue]), SUM(FactBudgetActuals[budget_revenue]), 0)"},
+    {"table": "FactBudgetActuals", "name": "Total Variance",        "expression": "SUM(FactBudgetActuals[variance])"},
+    {"table": "DimHeadcount",      "name": "Total Headcount",       "expression": "COUNTROWS(DimHeadcount)"}
+  ]
+}

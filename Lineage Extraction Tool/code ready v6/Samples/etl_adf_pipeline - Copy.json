@@ -1,0 +1,36 @@
+{
+  "name": "ETL_Customer_360_Pipeline",
+  "properties": {
+    "description": "Azure Data Factory pipeline for Customer 360 aggregation",
+    "metadata": {
+      "DOMAIN": "crm",
+      "SUBJECT_AREA": "customer_360",
+      "OWNER": "data-engineering"
+    },
+    "activities": [
+      {
+        "name": "Extract_Customer_Data",
+        "type": "SqlServerStoredProcedure",
+        "sqlQuery": "SELECT c.customer_id, c.customer_name, c.email, c.phone, c.signup_date, c.lifetime_value FROM crm.customers c WHERE c.is_active = 1"
+      },
+      {
+        "name": "Extract_Transactions",
+        "type": "Copy",
+        "source": {
+          "type": "SqlSource",
+          "sqlReaderQuery": "SELECT t.transaction_id, t.customer_id, t.transaction_date, t.amount, t.product_id, t.channel FROM crm.transactions t JOIN crm.customers c ON t.customer_id = c.customer_id WHERE t.transaction_date >= '2024-01-01'"
+        },
+        "sink": {
+          "type": "SqlSink",
+          "writeBehavior": "insert",
+          "sqlWriterStoredProcedure": "INSERT INTO gold.customer_transactions SELECT transaction_id, customer_id, transaction_date, amount, product_id, channel FROM staging.customer_transactions_stage"
+        }
+      },
+      {
+        "name": "Aggregate_Customer_360",
+        "type": "SqlServerStoredProcedure",
+        "sqlQuery": "INSERT INTO gold.customer_360_summary SELECT c.customer_id, c.customer_name, c.email, c.signup_date, COUNT(t.transaction_id) AS total_transactions, SUM(t.amount) AS total_spend, MAX(t.transaction_date) AS last_transaction_date FROM gold.customer_transactions t JOIN crm.customers c ON t.customer_id = c.customer_id GROUP BY c.customer_id, c.customer_name, c.email, c.signup_date"
+      }
+    ]
+  }
+}

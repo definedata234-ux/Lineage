@@ -1,0 +1,69 @@
+# DOMAIN: supply_chain
+# SUBJECT_AREA: logistics
+# SCHEDULE: 0 3 * * *
+# OWNER: data-engineering
+
+# dbt model: Supply Chain Logistics Pipeline
+# Tests: YAML/dbt format with embedded SQL
+
+version: 2
+
+models:
+  - name: shipment_summary
+    description: "Daily shipment aggregation by carrier and region"
+    config:
+      materialized: table
+      schema: gold
+
+    columns:
+      - name: shipment_id
+        description: "Unique shipment identifier"
+      - name: carrier_name
+        description: "Shipping carrier"
+      - name: region
+        description: "Destination region"
+      - name: total_shipments
+        description: "Count of shipments"
+      - name: avg_delivery_days
+        description: "Average delivery time"
+
+    meta:
+      sql: |
+        SELECT
+            s.shipment_id,
+            s.order_id,
+            s.carrier_id,
+            c.carrier_name,
+            c.carrier_type,
+            s.origin_warehouse,
+            s.destination_region AS region,
+            s.ship_date,
+            s.delivery_date,
+            DATEDIFF(s.delivery_date, s.ship_date) AS delivery_days,
+            s.shipment_cost,
+            s.weight_kg
+        FROM silver.shipments s
+        JOIN silver.carriers c
+            ON s.carrier_id = c.carrier_id
+        WHERE s.ship_date >= '2024-01-01'
+          AND s.status = 'delivered'
+
+  - name: carrier_performance
+    description: "Carrier KPI metrics"
+    config:
+      materialized: table
+      schema: gold
+
+    meta:
+      sql: |
+        INSERT INTO gold.carrier_performance
+        SELECT
+            carrier_id,
+            carrier_name,
+            carrier_type,
+            COUNT(shipment_id)          AS total_shipments,
+            AVG(delivery_days)          AS avg_delivery_days,
+            SUM(shipment_cost)          AS total_cost,
+            AVG(weight_kg)              AS avg_weight
+        FROM gold.shipment_summary
+        GROUP BY carrier_id, carrier_name, carrier_type
